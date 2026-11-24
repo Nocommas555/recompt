@@ -1,0 +1,382 @@
+# REC-001: Build Instruction Scanner - PRD
+
+**Status**: Approved (2026-11-24)
+**Created**: 2026-11-24
+**Ticket**: none (local ID REC-001)
+**Author**: Claude (via dev workflow analysis)
+
+---
+
+## Wider Context / Higher Goal
+
+recompt is a universal "point it at a repo, get a working program"
+tool: the user gives it a git remote URL or a local folder, and ends up
+with an app they can run on their own machine. The scanner is the first
+step that makes this possible across projects with very different
+languages and tech stacks.
+
+## Context
+
+To work, recompt has to know how to build and launch a large number of
+apps whose codebases, languages, and build systems differ widely. Each
+project describes this in its own way: in build files, in CI or
+container configuration, or in prose in its README. The scanner finds
+those instructions, turns them into one ordered plan, and carries out
+the build (or, for interpreted languages, the setup and the launch
+command).
+
+### Current State (observed)
+
+- The repository contains only an empty README and a `.gitignore`;
+  there is no source code yet — verified via: `git log --oneline -10`
+  (one commit, `9b3d117`) and `git diff --stat HEAD` (no changes),
+  2026-11-24
+- No code index exists for this repo — verified via: `rlm_repl status`
+  (exit 2, no state file), 2026-11-24
+- The development machine runs Linux — verified via: session
+  environment (platform `linux`), 2026-11-24
+
+### Past Similar Features (from claude-mem)
+
+None. Memory holds only this session's repository setup.
+
+## Problem Statement
+
+**Who**: A person who wants to use an open-source program that is
+distributed as source code, not as a ready-made binary.
+**What**: Each project builds differently; working out the right
+commands, toolchains, and dependencies takes reading and trial and
+error.
+**Why**: This effort stops people from using software that is otherwise
+freely available, and it has to be repeated for every project.
+**When**: Whenever the user has a link to a repository or a folder of
+source code and wants to run the program in it.
+
+## Goals
+
+### Primary Goal
+
+Given a git remote URL or a local folder, recompt produces a runnable
+result on the user's machine without the user reading the project's
+build documentation.
+
+**Runnable result** means one of:
+- **Compiled project**: every build step exits successfully and the
+  program file the plan expects exists at the reported location.
+- **Interpreted project**: every setup step exits successfully and a
+  launch command is returned.
+
+v1 does **not** start the app itself; it hands the user the program
+location or the launch command.
+
+### Secondary Goals
+
+- Show what it found and what it is about to do before doing it.
+- When a build cannot be completed, explain why and what is missing,
+  instead of failing silently.
+
+## User Stories
+
+### Epic
+
+As a user with a link to a project's source code, I want recompt to
+find and follow that project's build instructions, so that I get a
+runnable result without working out the build myself.
+
+### User Stories
+
+1. **As a** user
+   **I want** to give recompt a git remote URL or a local folder
+   **So that** I can start from whatever form of the source I have
+
+   **Acceptance Criteria**:
+   - [ ] A git remote URL (any git server, including GitHub) is fetched
+         to a local working copy
+   - [ ] Without a ref, the remote's default branch is used; a branch,
+         tag, or commit can be given to use that instead
+   - [ ] A GitHub link to a page inside a repository (a tree or file
+         view) is resolved to that repository and the ref in the link
+   - [ ] Private repositories work only through the user's existing git
+         credentials; recompt does not ask for or store credentials
+   - [ ] A local folder is used in place without being copied; the user
+         is told that build output will be written into that folder
+   - [ ] An unreachable URL, unknown ref, or missing folder stops the
+         run with a message naming the input that failed
+
+2. **As a** user
+   **I want** recompt to find the project's build instructions
+   **So that** projects are handled no matter how they document their
+   build
+
+   **Acceptance Criteria**:
+   - [ ] Build files of each supported ecosystem (see Support Matrix)
+         are detected
+   - [ ] Build steps are read from supported CI and container files;
+         container files are only read for hints, never run
+   - [ ] README/INSTALL prose is used only when no build file or CI
+         file yields a plan
+   - [ ] For each fixture README in the test set, the plan drawn from
+         prose matches that fixture's expected plan
+   - [ ] When sources disagree, the plan states which source it used
+         and why
+
+3. **As a** user
+   **I want** to see the plan before anything runs
+   **So that** I know what will happen on my machine
+
+   **Acceptance Criteria**:
+   - [ ] A preview mode prints the full plan, each step's source, and
+         the missing dependencies, and runs nothing
+   - [ ] In a normal run, steps taken from README prose are shown and
+         need the user's confirmation before they run
+
+4. **As a** user
+   **I want** recompt to build compiled projects
+   **So that** I get a runnable program
+
+   **Acceptance Criteria**:
+   - [ ] Plan steps run in order; each step's output is shown and
+         logged
+   - [ ] On success, the program file's location is reported
+   - [ ] On failure, the failing step and its error output are reported
+   - [ ] If the project builds but produces no runnable program (for
+         example it is a library), the run reports that and ends
+   - [ ] If the project contains several apps, the run lists them and
+         asks which to build
+
+5. **As a** user of an interpreted-language project
+   **I want** recompt to prepare the project and tell me how to launch
+   it
+   **So that** I can run projects that have no compile step
+
+   **Acceptance Criteria**:
+   - [ ] Setup the launch needs (for example installing the project's
+         dependencies) is run, with its commands shown
+   - [ ] The launch command is returned after setup succeeds
+
+6. **As a** user
+   **I want** recompt to ask before installing missing toolchains or
+   system packages
+   **So that** nothing is installed on my machine without my consent
+
+   **Acceptance Criteria**:
+   - [ ] Missing compilers, runtimes, and system packages are listed,
+         with required versions where the project states them, before
+         anything is installed
+   - [ ] Installation, including any administrator elevation, happens
+         only after the user confirms
+   - [ ] If the user declines, the run stops and reports what is missing
+   - [ ] On a system without a supported package manager, recompt lists
+         what is missing and installs nothing
+   - [ ] On Linux, dependencies are installed inside the build container
+         (Story 7); they are listed but need no confirmation, because
+         they do not change the host
+
+7. **As a** Linux user
+   **I want** builds to run inside a container
+   **So that** a project's build scripts cannot change my system
+
+   **Acceptance Criteria**:
+   - [ ] On Linux, every plan step runs inside a container; only the
+         working copy is shared with it
+   - [ ] For a compiled project, the program file is copied out of the
+         container and its host location is reported
+   - [ ] For an interpreted project, the returned launch command starts
+         the app inside the same container image
+   - [ ] If no supported container runtime is installed, the run stops
+         and says what to install; it builds directly on the host only
+         when the user explicitly asks for that
+   - [ ] After a sandboxed run, nothing outside the working copy and
+         the container runtime's own storage has changed
+
+## Support Matrix (v1)
+
+| | Linux | macOS | Windows |
+|---|---|---|---|
+| Ecosystems | Node/JS, Python, Rust, Go, C/C++ | same | same |
+| Build isolation | container sandbox | none (runs on host) | none (runs on host) |
+| Install missing deps via | apt, inside the container | Homebrew | winget |
+| CI / container files read | GitHub Actions, GitLab CI, Dockerfile | same | same |
+
+C/C++ covers Make, CMake, Meson, and autotools projects. Native Windows
+C/C++ toolchains are harder to detect and install than the others; see
+Risks.
+
+## Requirements
+
+### Functional Requirements
+
+1. **FR-1**: Accept a git remote URL (with an optional ref) or a local
+   folder, as described in Story 1.
+   - **Priority**: High
+   - **Dependencies**: a git client on the host
+     [assumption, verify in tech-design]
+
+2. **FR-2**: Detect build instructions for the ecosystems and CI/
+   container formats in the Support Matrix; use documentation prose only
+   as a fallback.
+   - **Priority**: High
+   - **Dependencies**: reading prose reliably likely needs an LLM
+     [assumption, verify in tech-design]
+
+3. **FR-3**: Combine detected instructions into one ordered plan that
+   records each step's source; offer a preview mode that prints the plan
+   and runs nothing.
+   - **Priority**: High
+
+4. **FR-4**: Run the plan for compiled projects and report the program
+   file's location, or report that no runnable program was produced.
+   - **Priority**: High
+
+5. **FR-5**: For interpreted projects, run setup and return the launch
+   command.
+   - **Priority**: High
+
+6. **FR-6**: Detect missing toolchains, runtimes, and system packages;
+   list them; install them through the Support Matrix package managers
+   only after the user confirms, elevating only then.
+   - **Priority**: High
+
+7. **FR-7**: Run on Linux, macOS, and Windows hosts per the Support
+   Matrix.
+   - **Priority**: High
+
+8. **FR-8**: Command-line interface with defined exit codes: success,
+   build failure, missing dependency declined, invalid input, cancelled.
+   The exact codes are set in tech-design.
+   - **Priority**: High
+
+9. **FR-9**: Every step has a time limit; a step that exceeds it fails
+   the run with a timeout message. The default limit is set in
+   tech-design.
+   - **Priority**: Medium
+
+10. **FR-10**: The user can cancel a run at any time (Ctrl-C); recompt
+    stops the current step and reports which steps finished.
+    - **Priority**: Medium
+
+11. **FR-11**: Remote sources are fetched into a recompt-managed working
+    folder; running again on the same source and ref reuses that copy
+    and updates it.
+    - **Priority**: Medium
+
+12. **FR-12**: On Linux, run every plan step inside a container that
+    shares only the working copy, as described in Story 7.
+    - **Priority**: High
+    - **Dependencies**: a container runtime on the host, such as Docker
+      or Podman [assumption, verify in tech-design]
+
+### Non-Functional Requirements
+
+1. **NFR-1**: Transparency - every command recompt runs is shown to the
+   user and written to a log file.
+2. **NFR-2**: Failure reporting - every failed run ends with the failing
+   step, its error output, and, when known, what is missing.
+3. **NFR-3**: Host changes - on Linux, a sandboxed run changes nothing
+   outside the working copy and the container runtime's storage. On
+   macOS and Windows, a run changes only what confirmed installs and
+   the ecosystems' own dependency caches change outside the working
+   copy.
+4. **NFR-4**: Platform testing - the test suite runs on Linux, macOS,
+   and Windows.
+
+### Technical Constraints
+
+- No existing code to integrate with; implementation language and
+  structure are chosen in tech-design.
+- Must run on Linux, macOS, and Windows hosts (FR-7).
+
+## Out of Scope
+
+- **Sandboxing on macOS and Windows.** Builds there run directly on
+  the host. The user decided to come back to this later.
+- Starting the built app (v1 returns the location or launch command).
+- Running a project's own Dockerfile; container files in the project
+  are read for hints only (the Linux sandbox uses recompt's own
+  container image).
+- Managing git credentials.
+- Producing binaries for a different OS or CPU than the host
+  (cross-compiling).
+- Installing through package managers not in the Support Matrix.
+- Updating or uninstalling apps after they are built.
+
+## Risks
+
+- **Running untrusted code on the host (macOS and Windows).** A
+  project's build scripts run with the user's permissions and can
+  change or damage the system. Accepted for v1; to be revisited.
+- **Container limits (Linux).** A container lowers the risk but is not
+  a complete security boundary; a build with network access can still
+  download and run anything inside it.
+- **Built program may not run on the host (Linux).** A program
+  compiled inside the container can depend on system libraries the
+  host does not have, or has in other versions. A likely mitigation is
+  a container image that matches the host's distribution and release
+  [assumption, verify in tech-design].
+- **Wrong commands from prose.** Plans drawn from README text by an LLM
+  can contain wrong or invented commands. Mitigated by using prose only
+  as a fallback and requiring confirmation for those steps (Story 3).
+- **Prompt injection.** README text is written by the project's
+  authors and can contain instructions aimed at the LLM. Same
+  mitigation as above.
+- **Sending repository content to an LLM.** If the LLM is an external
+  service, repository text leaves the machine, costs money per run,
+  and needs a network connection
+  [assumption, verify in tech-design].
+- **Partial host changes.** A failed build can leave installed packages
+  and partial build output behind; v1 does not undo them.
+- **Three operating systems at once.** Toolchain names, package
+  managers, and build behavior differ per OS; native Windows C/C++
+  toolchains are the hardest case.
+
+## Success Metrics
+
+1. **Benchmark build success**: a fixed list of 15 named repositories
+   per OS, spread across the supported ecosystems, chosen in
+   tech-design.
+   - Linux: at least 90% (14 of 15) end in a runnable result.
+   - macOS: at least 70% (11 of 15).
+   - Windows: at least 70% (11 of 15).
+2. **Prompts per run**: on successful benchmark runs, the average
+   number of prompts other than install and prose-step confirmations is
+   zero.
+
+## References
+
+### From Codebase (RLM)
+
+- None. The repository has no code yet.
+
+### From History (Claude-Mem)
+
+- None. No earlier PRDs exist for this project.
+
+## Decisions Taken
+
+- Input: git remote URL with optional ref, or local folder (user,
+  2026-11-24).
+- Instruction sources: build files, CI configs, README/docs prose
+  (user, 2026-11-24); prose as fallback only (review, 2026-11-24).
+- Interpreted languages: run setup and return the launch command
+  (user, 2026-11-24).
+- OS scope: Linux, macOS, and Windows in v1 (user, 2026-11-24).
+- Sandboxing: container sandbox on Linux only; none on macOS and
+  Windows for now (user, 2026-11-24).
+- Linux in-container installs need no confirmation; no container
+  runtime means the run stops unless the user explicitly asks for a
+  host build (Claude, 2026-11-24, follows from the sandbox decision).
+- Missing dependencies: install after asking (user, 2026-11-24).
+- Ecosystems: Node/JS, Python, Rust, Go, C/C++ (user, 2026-11-24).
+- Package managers: apt, Homebrew, winget (user, 2026-11-24).
+- CI/container files: GitHub Actions, GitLab CI, Dockerfile (user,
+  2026-11-24).
+- Benchmark target: 90% Linux, 70% macOS and Windows (user,
+  2026-11-24); 15 repos per OS (Claude, 2026-11-24, user did not set a
+  size).
+
+---
+
+**Next Steps**:
+1. Review and refine this PRD
+2. Run `/embo:tech-design` to create technical design
+3. Run `/embo:tasks` to break down into tasks
