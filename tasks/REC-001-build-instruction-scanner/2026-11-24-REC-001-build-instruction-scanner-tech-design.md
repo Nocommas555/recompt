@@ -185,7 +185,11 @@ infrastructure with fakes. Only `cli` prompts or exits.
    - **ContainerRunner** (Linux):
      - Runtime: `podman` on `PATH`, else `docker`. Neither -> exit 3
        unless the user chose the explicit host build.
-     - Rootless detection: `podman info` / `docker info`.
+     - Rootless detection: `podman info` / `docker info`. Rootless Podman
+       also needs a subordinate UID/GID range for the user in
+       `/etc/subuid` and `/etc/subgid`; without one it cannot unpack
+       images, so recompt stops with exit 3 and prints the `usermod`
+       fix.
      - Image: from `/etc/os-release`, using `UBUNTU_CODENAME` or
        `DEBIAN_CODENAME` when present (covers Pop!_OS, Mint and other
        derivatives), else `ID` + `VERSION_ID` for Ubuntu and Debian.

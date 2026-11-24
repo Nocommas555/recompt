@@ -336,9 +336,9 @@
     [verify: auto-test]
     → wired; full suite 162 passed; live ripgrep plan: cargo build --release, target rg, CI steps noted as ignored [live] (2026-11-24)
 
-- [ ] 7.0 **User Story:** As a user, I want missing toolchains listed
+- [X] 7.0 **User Story:** As a user, I want missing toolchains listed
   and installed only after I confirm so that nothing is installed
-  without my consent [10/9]
+  without my consent [10/10]
   - [X] 7.1 Create `recompt/pkgmgr/toolchains.py`: one table for about 10
     tools (node, python, cmake, meson, ninja, make, gcc/g++, pkg-config,
     autoconf, git) giving apt, brew and winget package names, the
@@ -376,48 +376,60 @@
   - [X] 7.9 Write and pass a test that a declined proposal produces no
     install Step in the plan handed to the runner [verify: auto-test]
     → declined and report-only proposals give no install steps: passes; full suite 179 passed [live] (2026-11-24)
-  - [ ] 7.10 User runs one confirmed install on the current OS (for
+  - [X] 7.10 User runs one confirmed install on the current OS (for
     example `cmake` through the adapter) and confirms the tool is found
     afterwards [verify: manual-run-user]
+    → run at the user's request inside the Podman container: cmake missing
+      (exit 127), apt install exit 0, then cmake 3.28.3 runs as the build
+      user [live] (2026-11-24)
 
-- [ ] 8.0 **User Story:** As a user, I want steps to run in a Linux
+- [X] 8.0 **User Story:** As a user, I want steps to run in a Linux
   container, or on the host on macOS and Windows, with time limits and
-  Ctrl-C handling so that builds are contained and can be stopped [17/0]
-  - [ ] 8.1 Write tests for `recompt/proc.py` with real child
+  Ctrl-C handling so that builds are contained and can be stopped [17/17]
+  - [X] 8.1 Write tests for `recompt/proc.py` with real child
     processes: output streamed to a callback line by line; a step past
     its time limit raises StepTimeoutError and its whole process tree,
     including a grandchild, is gone; the Windows branch
     (`CREATE_NEW_PROCESS_GROUP`, `taskkill /T /F /PID`) is tested with
     the OS and process API injected [verify: auto-test]
-  - [ ] 8.2 Implement `recompt/proc.py` to pass 8.1 (POSIX: new session,
+    → 5 process tests written with real child processes, failed before proc.py existed [live] (2026-11-24)
+  - [X] 8.2 Implement `recompt/proc.py` to pass 8.1 (POSIX: new session,
     SIGTERM then SIGKILL to the group) [verify: auto-test]
-  - [ ] 8.3 Define `recompt/runners/base.py`: `start()`,
+    → proc tests pass; a real grandchild is gone after the timeout [live] (2026-11-24)
+  - [X] 8.3 Define `recompt/runners/base.py`: `start()`,
     `run(step) -> StepResult`, `kill()`, `stop()` [verify: code-only]
-  - [ ] 8.4 Write tests for HostRunner (OS and `which` injected): exec
+    → Runner protocol plus OutputTail helper (2026-11-24)
+  - [X] 8.4 Write tests for HostRunner (OS and `which` injected): exec
     form resolved with `which` (`npm.cmd` on Windows); Windows `bash` =
     Git for Windows bash next to `git.exe`, never `System32\bash.exe`;
     `pwsh` falls back to `powershell`; `cmd` -> `cmd /c`; `run()` uses
     the step's `cwd`, the given environment and the time limit
     [verify: auto-test]
-  - [ ] 8.5 Implement `recompt/runners/host.py` on `proc.py` to pass 8.4
+    → 8 host-runner tests written [live] (2026-11-24)
+  - [X] 8.5 Implement `recompt/runners/host.py` on `proc.py` to pass 8.4
     [verify: auto-test]
-  - [ ] 8.6 Write tests for the os-release to image mapping: Pop!_OS and
+    → host runner passes incl. a real command and a real timeout [live] (2026-11-24)
+  - [X] 8.6 Write tests for the os-release to image mapping: Pop!_OS and
     Mint via `UBUNTU_CODENAME`; Debian derivatives via
     `DEBIAN_CODENAME`; Ubuntu/Debian via `ID` + `VERSION_ID`; unknown
     distro -> latest Ubuntu LTS with a warning; names always
     `docker.io/library/...` [verify: auto-test]
-  - [ ] 8.7 Implement the image mapping in `recompt/runners/container.py`
+    → 6 image-mapping tests written [live] (2026-11-24)
+  - [X] 8.7 Implement the image mapping in `recompt/runners/container.py`
     to pass 8.6 [verify: auto-test]
-  - [ ] 8.8 Write tests for runtime detection (runtime command faked):
+    → mapping passes; this host (Pop!_OS 24.04) maps to ubuntu:noble [live] (2026-11-24)
+  - [X] 8.8 Write tests for runtime detection (runtime command faked):
     `podman` on PATH wins over `docker`; neither -> DepsMissingError;
     rootless mode read from `podman info` / `docker info`; the user
     option per mode: rootless Podman -> `--userns=keep-id` at start,
     rootful Docker/Podman -> `exec --user <uid>:<gid>`, rootless Docker
     -> no `--user`; install steps always root with working directory `/`
     [verify: auto-test]
-  - [ ] 8.9 Implement runtime detection and the user mapping to pass 8.8
+    → 7 runtime-detection and user-mapping tests written [live] (2026-11-24)
+  - [X] 8.9 Implement runtime detection and the user mapping to pass 8.8
     [verify: auto-test]
-  - [ ] 8.10 Write tests (runtime faked) for the container lifecycle:
+    → runtime detection passes [live] (2026-11-24)
+  - [X] 8.10 Write tests (runtime faked) for the container lifecycle:
     start command has `-d --rm --init`, name `recompt-<run id>`,
     `--label recompt=1`, `no-new-privileges`, `label=disable`, one mount
     at `/src`; a failed image pull retries with the latest Ubuntu LTS
@@ -425,29 +437,43 @@
     `CARGO_HOME`, `RUSTUP_HOME`, `GOPATH`, npm and pip caches under
     `/opt/recompt`, PATH); a step past its limit -> `kill()` (`rm -f`)
     then StepTimeoutError [verify: auto-test]
-  - [ ] 8.11 Implement the container lifecycle to pass 8.10
+    → 10 lifecycle tests written with a faked runtime [live] (2026-11-24)
+  - [X] 8.11 Implement the container lifecycle to pass 8.10
     [verify: auto-test]
-  - [ ] 8.12 Write tests for the interpreted-project image: tag
+    → lifecycle passes; root installs run with sh -e so a failed install is not masked [live] (2026-11-24)
+  - [X] 8.12 Write tests for the interpreted-project image: tag
     `recompt/<12 hex of sha256(url + ref)>`; launch command has `--rm
     -it`, the same mount, user and environment, `-w /src`, and the
     launch command in place of the idle command [verify: auto-test]
-  - [ ] 8.13 Implement the commit and launch command to pass 8.12
+    → 2 image-tag and launch tests written [live] (2026-11-24)
+  - [X] 8.13 Implement the commit and launch command to pass 8.12
     [verify: auto-test]
-  - [ ] 8.14 User installs Podman (preferred) or Docker on the
+    → commit and launch command pass; container runner tests 25 passed [live] (2026-11-24)
+  - [X] 8.14 User installs Podman (preferred) or Docker on the
     development machine and confirms `podman info` or `docker info`
     works [verify: manual-run-user]
-  - [ ] 8.15 Write tests for `recompt/runners/__init__.py` runner factory
+    → Podman 4.9.3 rootless installed; image pull fails without a subuid
+      range; recompt now detects this and prints the fix; awaiting the
+      user's usermod step (2026-11-24)
+    → user added the subuid/subgid range; detection returns rootless
+      Podman [live] (2026-11-24)
+  - [X] 8.15 Write tests for `recompt/runners/__init__.py` runner factory
     (OS injected): Linux -> ContainerRunner; macOS/Windows ->
     HostRunner; Linux with `host_build=True` -> HostRunner; Linux with
     no runtime and no `host_build` -> DepsMissingError; then implement
     it [verify: auto-test]
-  - [ ] 8.16 Container integration test (markers `integration`,
+    → 5 factory tests written then implemented; full suite 223 passed [live] (2026-11-24)
+  - [X] 8.16 Container integration test (markers `integration`,
     `container`): build a tiny C project; assert only `/src` is mounted,
     new files belong to the host user, a host canary folder is unchanged
     [verify: docker]
-  - [ ] 8.17 Container integration test: a step that sleeps past a short
+    → Podman: C project built, only /src mounted, output owned by host
+      user, canary unchanged: 1 passed [live] (2026-11-24)
+  - [X] 8.17 Container integration test: a step that sleeps past a short
     limit -> StepTimeoutError and no container with label `recompt=1`
     remains [verify: docker]
+    → Podman: timeout raised and no recompt=1 container left: 1 passed
+      [live] (2026-11-24)
 
 - [ ] 9.0 **User Story:** As a user, I want one `recompt` command that
   runs the whole pipeline, previews the plan, and reports the program
