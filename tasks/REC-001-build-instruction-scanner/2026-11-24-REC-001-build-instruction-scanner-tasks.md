@@ -66,120 +66,150 @@
 
 ## Tasks
 
-- [ ] 1.0 **User Story:** As a developer, I want the project skeleton,
+- [X] 1.0 **User Story:** As a developer, I want the project skeleton,
   shared models, errors and config in place so that every later layer
-  builds on one set of types [7/0]
-  - [ ] 1.1 Create `pyproject.toml` (Python >= 3.11; deps pydantic v2,
+  builds on one set of types [7/7]
+  - [X] 1.1 Create `pyproject.toml` (Python >= 3.11; deps pydantic v2,
     PyYAML, platformdirs; extras `claude` = anthropic, `ollama` = ollama;
     dev pytest; console script `recompt = recompt.cli:main`; markers
     `integration`, `container`, `llm`, `benchmark`, deselected by
     default) and add Python build/cache entries to `.gitignore`
     [verify: code-only]
-  - [ ] 1.2 Create the package skeleton: `recompt/__init__.py`,
+    → setuptools backend; anthropic and ollama left unpinned until 5.6 /
+      5.8 check their APIs (2026-11-24)
+  - [X] 1.2 Create the package skeleton: `recompt/__init__.py`,
     `recompt/__main__.py` (calls `cli.main`), empty subpackages
     `detectors`, `runners`, `pkgmgr`, `llm`, and `tests/` with one smoke
     test; `pip install -e .[dev]` then `pytest` passes
     [verify: auto-test]
-  - [ ] 1.3 Implement `recompt/models.py` with every model and field in
+    → smoke tests: 2 passed [live] (2026-11-24)
+  - [X] 1.3 Implement `recompt/models.py` with every model and field in
     the design's Data Models section: Source, Requirement, Step (incl.
     `shell`, `as_root`), Target, PlanNote, Finding (incl. `notes`),
     WorkingCopy, DetectContext, StepResult, ExtractedRequirement,
     ExtractedStep, ExtractedPlan, BuildPlan, InstallProposal, RunResult
     (incl. `completed_steps`, `missing`, `prompts_asked`)
     [verify: code-only]
-  - [ ] 1.4 Write tests for `recompt/errors.py`: InvalidInputError 2,
+    → models build; ExtractedPlan JSON schema generates [live] (2026-11-24)
+  - [X] 1.4 Write tests for `recompt/errors.py`: InvalidInputError 2,
     BuildFailedError 1, DepsMissingError 3, NoRunnableOutputError 4,
     NoPlanError 5, StepTimeoutError 6, CancelledError 130; each carries
     its code and a message [verify: auto-test]
-  - [ ] 1.5 Implement `recompt/errors.py` to pass 1.4 [verify: auto-test]
-  - [ ] 1.6 Write tests for `recompt/config.py`: with no file the
+    → 8 tests written, failed before errors.py existed [live] (2026-11-24)
+  - [X] 1.5 Implement `recompt/errors.py` to pass 1.4 [verify: auto-test]
+    → test_errors: 8 passed [live] (2026-11-24)
+  - [X] 1.6 Write tests for `recompt/config.py`: with no file the
     defaults apply (`llm.backend="auto"`, `llm.claude_model=
     "claude-opus-5-5"`, `llm.ollama_model="llama3.1:8b"`,
     `step_timeout=1800`); a TOML file in the platformdirs config folder
     (path injected) overrides them; an invalid value raises
     InvalidInputError [verify: auto-test]
-  - [ ] 1.7 Implement `recompt/config.py` to pass 1.6 [verify: auto-test]
+    → 6 tests written, failed before config.py existed [live] (2026-11-24)
+  - [X] 1.7 Implement `recompt/config.py` to pass 1.6 [verify: auto-test]
+    → full suite: 16 passed, 0 failed [live] (2026-11-24)
 
-- [ ] 2.0 **User Story:** As a user, I want recompt to turn a git URL,
+- [X] 2.0 **User Story:** As a user, I want recompt to turn a git URL,
   GitHub page link or local folder into a local working copy so that it
-  can start from whatever source I have [10/0]
-  - [ ] 2.1 Write tests for input classification: existing path ->
+  can start from whatever source I have [10/10]
+  - [X] 2.1 Write tests for input classification: existing path ->
     local; `https://`, `ssh://`, `git://`, `file://` and scp-style
     `git@host:path` -> git URL; anything else -> InvalidInputError
     [verify: auto-test]
-  - [ ] 2.2 Write tests for URL normalization: credentials removed from
+    → 7 classification tests written, failed before source.py existed [live] (2026-11-24)
+  - [X] 2.2 Write tests for URL normalization: credentials removed from
     `https://user:token@host/...`; `.git` suffix optional; GitHub
     `/tree/<rest>` and `/blob/<rest>` resolved by the longest prefix of
     `<rest>` matching a ref from a faked `ls-remote` list (refs with `/`
     work); plain repo URL has no ref [verify: auto-test]
-  - [ ] 2.3 Implement classification and normalization in
+    → 14 normalization tests written, failed before source.py existed [live] (2026-11-24)
+  - [X] 2.3 Implement classification and normalization in
     `recompt/source.py` to pass 2.1 and 2.2; git calls go through an
     injectable callable [verify: auto-test]
-  - [ ] 2.4 Write tests for the cache path: same URL + ref -> same
+    → test_source_normalize: 21 passed [live] (2026-11-24)
+  - [X] 2.4 Write tests for the cache path: same URL + ref -> same
     folder; other ref -> other folder; no credentials in the path
     [verify: auto-test]
-  - [ ] 2.5 Implement the cache path (platformdirs cache dir +
+    → 2 cache-path tests written, failed before implementation [live] (2026-11-24)
+  - [X] 2.5 Implement the cache path (platformdirs cache dir +
     `recompt/src/<hash of normalized URL and ref>`) [verify: auto-test]
-  - [ ] 2.6 Write tests, with the git callable faked, for fetching: new
+    → cache-path tests pass [live] (2026-11-24)
+  - [X] 2.6 Write tests, with the git callable faked, for fetching: new
     copy -> `init`, `fetch --depth 1 origin <ref>`, `checkout
     FETCH_HEAD`, `submodule update --init --recursive --depth 1`; no ref
     -> fetches `HEAD`; short commit ID or a refused fetch -> full fetch
     then checkout; existing copy -> fetch and reset, no `init`; unknown
     ref or unreachable URL -> InvalidInputError naming the input
     [verify: auto-test]
-  - [ ] 2.7 Implement fetching to pass 2.6 [verify: auto-test]
-  - [ ] 2.8 Write tests for local folders: existing folder ->
+    → 8 fetch tests written with a fake git, failed before implementation [live] (2026-11-24)
+  - [X] 2.7 Implement fetching to pass 2.6 [verify: auto-test]
+    → test_source_fetch: 12 passed; full suite 49 passed [live] (2026-11-24)
+  - [X] 2.8 Write tests for local folders: existing folder ->
     WorkingCopy with `in_place=True` and nothing copied; missing folder
     -> InvalidInputError [verify: auto-test]
-  - [ ] 2.9 Implement local-folder handling to pass 2.8
+    → 2 local-folder tests written, failed before implementation [live] (2026-11-24)
+  - [X] 2.9 Implement local-folder handling to pass 2.8
     [verify: auto-test]
-  - [ ] 2.10 Integration test (marker `integration`): clone a small
+    → local-folder tests pass [live] (2026-11-24)
+  - [X] 2.10 Integration test (marker `integration`): clone a small
     public repo at a tag and at a commit; run again and confirm the same
     folder is reused [verify: auto-test]
+    → real clone at a tag and at a commit, then reuse of the same folder: 1 passed [live] (2026-11-24)
 
-- [ ] 3.0 **User Story:** As a user, I want recompt to read the build
+- [X] 3.0 **User Story:** As a user, I want recompt to read the build
   files of Node, Python, Rust, Go and C/C++ projects so that common
-  projects get a reliable plan [11/0]
-  - [ ] 3.1 Define the detector interface in
+  projects get a reliable plan [11/11]
+  - [X] 3.1 Define the detector interface in
     `recompt/detectors/__init__.py`: `detect(copy: WorkingCopy, ctx:
     DetectContext) -> list[Finding]`, plus the ordered registry list
     (filled in 3.11 and 4.7; `readme` is never in it)
     [verify: code-only]
-  - [ ] 3.2 Write tests for the `node` detector with fixtures: npm, yarn
+    → plain-function interface detect(copy, ctx) plus REGISTRY and detect_all (2026-11-24)
+  - [X] 3.2 Write tests for the `node` detector with fixtures: npm, yarn
     and pnpm picked by lockfile; `engines.node` -> Requirement min
     version; install step; `scripts.build` -> build step; no
     `package.json` -> no finding [verify: auto-test]
-  - [ ] 3.3 Implement `recompt/detectors/node.py` [verify: auto-test]
-  - [ ] 3.4 Write tests for the `python` detector: pyproject with
+    → 8 node tests written, failed before node.py existed; fixtures built in tmp folders instead of tests/fixtures [live] (2026-11-24)
+  - [X] 3.3 Implement `recompt/detectors/node.py` [verify: auto-test]
+    → node tests pass [live] (2026-11-24)
+  - [X] 3.4 Write tests for the `python` detector: pyproject with
     `requires-python` -> min version; setup.py only; requirements.txt
     only; setup steps create a virtual environment and install into it
     [verify: auto-test]
-  - [ ] 3.5 Implement `recompt/detectors/python.py` [verify: auto-test]
-  - [ ] 3.6 Write tests for the `rust` detector: one binary -> target
+    → 6 python tests written, failed before python.py existed [live] (2026-11-24)
+  - [X] 3.5 Implement `recompt/detectors/python.py` [verify: auto-test]
+    → python tests pass [live] (2026-11-24)
+  - [X] 3.6 Write tests for the `rust` detector: one binary -> target
     `target/release/<bin>`; several `[[bin]]` -> several targets;
     `rust-version` -> min version; build step `cargo build --release`
     [verify: auto-test]
-  - [ ] 3.7 Implement `recompt/detectors/rust.py` [verify: auto-test]
-  - [ ] 3.8 Write tests for the `go` detector: `go` directive -> min
+    → 5 rust tests written, failed before rust.py existed [live] (2026-11-24)
+  - [X] 3.7 Implement `recompt/detectors/rust.py` [verify: auto-test]
+    → rust tests pass [live] (2026-11-24)
+  - [X] 3.8 Write tests for the `go` detector: `go` directive -> min
     version; one `main` package -> `go build -o <out>` and that target;
     several `cmd/*` mains -> several targets [verify: auto-test]
-  - [ ] 3.9 Implement `recompt/detectors/go.py` [verify: auto-test]
-  - [ ] 3.10 Write tests for the `cfamily` detector: CMake, Meson,
+    → 4 go tests written, failed before go.py existed [live] (2026-11-24)
+  - [X] 3.9 Implement `recompt/detectors/go.py` [verify: auto-test]
+    → go tests pass [live] (2026-11-24)
+  - [X] 3.10 Write tests for the `cfamily` detector: CMake, Meson,
     autotools (`configure` / `configure.ac`) and plain Makefile each
     give the build tool as a Requirement plus configure/build steps;
     CMake wins when several exist, and a note records the others
     [verify: auto-test]
-  - [ ] 3.11 Implement `recompt/detectors/cfamily.py` and register the
+    → 9 cfamily tests written, failed before cfamily.py existed [live] (2026-11-24)
+  - [X] 3.11 Implement `recompt/detectors/cfamily.py` and register the
     five build-file detectors in order [verify: auto-test]
+    → registry test passes; full suite 82 passed [live] (2026-11-24)
 
-- [ ] 4.0 **User Story:** As a user, I want recompt to read GitHub
+- [X] 4.0 **User Story:** As a user, I want recompt to read GitHub
   Actions, GitLab CI and Dockerfiles so that projects without standard
-  build files still get steps and requirements [7/0]
-  - [ ] 4.1 Write tests for GitHub Actions job selection using
+  build files still get steps and requirements [7/7]
+  - [X] 4.1 Write tests for GitHub Actions job selection using
     `ctx.host_os`: job whose `runs-on` matches the host OS, else the
     first Linux job; in a matrix, the entry matching the host OS
     [verify: auto-test]
-  - [ ] 4.2 Write tests for GitHub Actions step rules: `uses:
+    → 4 job-selection tests written, failed before github_actions.py existed [live] (2026-11-24)
+  - [X] 4.2 Write tests for GitHub Actions step rules: `uses:
     actions/setup-<lang>` + `with:` version -> Requirement; other
     `uses:` skipped; steps with `${{ }}` skipped with a `skipped` note;
     `apt-get install`, `brew install`, `choco install` and `winget
@@ -187,129 +217,165 @@
     is also an install Step with `sudo` removed and `as_root=True`;
     `shell:` or the platform default (bash; pwsh on Windows) sets
     `Step.shell`; every step has `source=CI` [verify: auto-test]
-  - [ ] 4.3 Implement `recompt/detectors/github_actions.py` to pass 4.1
+    → 7 step-rule tests written; also skips test/lint/upload steps (added to design) [live] (2026-11-24)
+  - [X] 4.3 Implement `recompt/detectors/github_actions.py` to pass 4.1
     and 4.2 [verify: auto-test]
-  - [ ] 4.4 Write tests for GitLab CI: job named like build/compile,
+    → github_actions tests: 14 passed; live on ripgrep picks the Linux job [live] (2026-11-24)
+  - [X] 4.4 Write tests for GitLab CI: job named like build/compile,
     else the first job with `script:`; `image:` ignored; install lines
     handled as in 4.2 [verify: auto-test]
-  - [ ] 4.5 Implement `recompt/detectors/gitlab_ci.py`
+    → 2 GitLab tests written, failed before gitlab_ci.py existed [live] (2026-11-24)
+  - [X] 4.5 Implement `recompt/detectors/gitlab_ci.py`
     [verify: auto-test]
-  - [ ] 4.6 Write tests for the Dockerfile detector: `RUN` lines with
+    → GitLab tests pass [live] (2026-11-24)
+  - [X] 4.6 Write tests for the Dockerfile detector: `RUN` lines with
     `apt-get`, `apk` or `dnf` install -> Requirements only, no steps;
     `EXPOSE` -> a `warning` note that ports are not mapped
     [verify: auto-test]
-  - [ ] 4.7 Implement `recompt/detectors/dockerfile.py`; register
+    → 2 Dockerfile tests written, failed before dockerfile.py existed [live] (2026-11-24)
+  - [X] 4.7 Implement `recompt/detectors/dockerfile.py`; register
     `github_actions`, `gitlab_ci`, `dockerfile` after the build-file
     detectors [verify: auto-test]
+    → registered after build-file detectors; full suite 102 passed; live ripgrep run found a workspace rust-version bug, fixed with a test [live] (2026-11-24)
 
 - [ ] 5.0 **User Story:** As a user, I want recompt to fall back to
   README instructions through Claude or Ollama so that projects that
-  only document their build in prose still work [12/0]
-  - [ ] 5.1 Define `recompt/llm/base.py`: `LLMBackend` protocol with
+  only document their build in prose still work [12/11]
+  - [X] 5.1 Define `recompt/llm/base.py`: `LLMBackend` protocol with
     `name` and `extract_plan(sections) -> ExtractedPlan`;
     `LLMUnavailable` error [verify: code-only]
-  - [ ] 5.2 Write tests for README section selection in
+    → LLMBackend protocol, LLMUnavailable, DocSection, shared prompt (2026-11-24)
+  - [X] 5.2 Write tests for README section selection in
     `recompt/detectors/readme.py`: files README*, INSTALL*, BUILDING*,
     docs/build*.md; keep sections whose heading matches
     build/install/compile/usage/getting started, with their fenced code
     blocks; drop the rest [verify: auto-test]
-  - [ ] 5.3 Implement section selection to pass 5.2 [verify: auto-test]
-  - [ ] 5.4 Write tests for the README detector with a fake backend:
+    → 4 section-selection tests written, failed before readme.py existed [live] (2026-11-24)
+  - [X] 5.3 Implement section selection to pass 5.2 [verify: auto-test]
+    → section selection passes, incl. # comments inside code fences [live] (2026-11-24)
+  - [X] 5.4 Write tests for the README detector with a fake backend:
     ExtractedPlan converted to a Finding; every step `source=PROSE`,
     `needs_confirm=True`, `origin` = the README file; backend raising
     `LLMUnavailable` -> a Finding with no steps and an `unavailable`
     note; `ctx.llm` is None -> same note [verify: auto-test]
-  - [ ] 5.5 Implement the README detector to pass 5.4
+    → 4 README-detector tests written with a fake backend [live] (2026-11-24)
+  - [X] 5.5 Implement the README detector to pass 5.4
     [verify: auto-test]
-  - [ ] 5.6 Write tests for `recompt/llm/claude.py` with the Anthropic
+    → README detector tests pass [live] (2026-11-24)
+  - [X] 5.6 Write tests for `recompt/llm/claude.py` with the Anthropic
     client faked: calls `messages.parse` with the configured model,
     `max_tokens=16000`, `output_format=ExtractedPlan`; returns
     `parsed_output`; `RateLimitError`, `APIStatusError`,
     `APIConnectionError`, missing credentials and a missing `anthropic`
     package each raise `LLMUnavailable` [verify: auto-test]
-  - [ ] 5.7 Implement `recompt/llm/claude.py` (lazy import) to pass 5.6
+    → 8 Claude backend tests written against anthropic 2.13 error classes [live] (2026-11-24)
+  - [X] 5.7 Implement `recompt/llm/claude.py` (lazy import) to pass 5.6
     [verify: auto-test]
-  - [ ] 5.8 Write tests for `recompt/llm/ollama.py` with the client
+    → Claude backend passes; live no-credentials run exposed a TypeError, now mapped to LLMUnavailable [live] (2026-11-24)
+  - [X] 5.8 Write tests for `recompt/llm/ollama.py` with the client
     faked: calls `chat(model=<config>, format=ExtractedPlan.
     model_json_schema(), options={"temperature": 0})` and returns
     `ExtractedPlan.model_validate_json(...)`; `ResponseError`, connection
     errors, a missing `ollama` package and `ValidationError` raise
     `LLMUnavailable` [verify: auto-test]
-  - [ ] 5.9 Implement `recompt/llm/ollama.py` (lazy import) to pass 5.8
+    → 7 Ollama backend tests written [live] (2026-11-24)
+  - [X] 5.9 Implement `recompt/llm/ollama.py` (lazy import) to pass 5.8
     [verify: auto-test]
-  - [ ] 5.10 Write tests for backend selection in
+    → Ollama backend passes; live call to a closed port gives LLMUnavailable [live] (2026-11-24)
+  - [X] 5.10 Write tests for backend selection in
     `recompt/llm/__init__.py`: `none`, `claude`, `ollama` return that
     backend (or None); `auto` tries Claude credentials, then a reachable
     Ollama server (probe injected), then None [verify: auto-test]
-  - [ ] 5.11 Implement backend selection to pass 5.10
+    → 5 selection tests written [live] (2026-11-24)
+  - [X] 5.11 Implement backend selection to pass 5.10
     [verify: auto-test]
-  - [ ] 5.12 Add 4 README fixtures with expected ExtractedPlans and a
+    → selection passes; full suite 130 passed [live] (2026-11-24)
+  - [~] 5.12 Add 4 README fixtures with expected ExtractedPlans and a
     live test (marker `llm`) that runs each available backend against
     them; the user runs it with credentials or a local Ollama
     [verify: manual-run-user]
+    → local Ollama (gemma4): 4 passed incl. injection case; Claude not run
+      to avoid billing; awaiting user run and confirmation (2026-11-24)
 
-- [ ] 6.0 **User Story:** As a user, I want all findings merged into
+- [X] 6.0 **User Story:** As a user, I want all findings merged into
   one ordered plan with a launch command for interpreted projects so
-  that I see exactly what will run and where each step came from [8/0]
-  - [ ] 6.1 Write tests for `recompt/planner.py` merging: the README
+  that I see exactly what will run and where each step came from [8/8]
+  - [X] 6.1 Write tests for `recompt/planner.py` merging: the README
     detector is an injected callable, called only when no registry
     finding has build steps; priority build files > CI > Dockerfile >
     prose; lower sources only add requirements or fill missing steps; a
     conflict keeps the higher source and adds a `conflict` note naming
     both; all finding notes are copied into `BuildPlan.notes`; no steps
     at all -> NoPlanError [verify: auto-test]
-  - [ ] 6.2 Implement merging to pass 6.1 [verify: auto-test]
-  - [ ] 6.3 Write tests for project kind and targets: node/python ->
+    → 7 merge tests written, failed before planner.py existed [live] (2026-11-24)
+  - [X] 6.2 Implement merging to pass 6.1 [verify: auto-test]
+    → merge passes; build-step fill and conflict rules added to the design [live] (2026-11-24)
+  - [X] 6.3 Write tests for project kind and targets: node/python ->
     `interpreted`; rust/go/cfamily -> `compiled`; CI- or prose-only plan
-    -> `compiled` when a build step has an expected target, else
-    `interpreted`; several targets are returned to the caller
+    -> `interpreted` with a launch step, else `compiled` with a build
+    step, else `interpreted`; several targets are returned to the caller
     [verify: auto-test]
-  - [ ] 6.4 Implement project kind and targets to pass 6.3
+    → project-kind tests written; CI/prose-only rule corrected in design and task [live] (2026-11-24)
+  - [X] 6.4 Implement project kind and targets to pass 6.3
     [verify: auto-test]
-  - [ ] 6.5 Write tests for `recompt/launch.py`: Node `scripts.start` ->
+    → project kind and targets pass [live] (2026-11-24)
+  - [X] 6.5 Write tests for `recompt/launch.py`: Node `scripts.start` ->
     `npm start` (`yarn start` / `pnpm start` by lockfile), else `bin`
     -> `node <bin>`, else `main` -> `node <main>`; Python first
     `[project.scripts]` entry, else `python -m <pkg>` when it has
     `__main__.py`, else `python main.py` / `app.py`; nothing -> None
     [verify: auto-test]
-  - [ ] 6.6 Implement `recompt/launch.py` to pass 6.5 [verify: auto-test]
-  - [ ] 6.7 Write tests that the planner adds a `launch` step from the
+    → 12 launch-resolver tests written, failed before launch.py existed [live] (2026-11-24)
+  - [X] 6.6 Implement `recompt/launch.py` to pass 6.5 [verify: auto-test]
+    → launch resolver passes [live] (2026-11-24)
+  - [X] 6.7 Write tests that the planner adds a `launch` step from the
     resolver for interpreted plans, and none when the resolver returns
     None [verify: auto-test]
-  - [ ] 6.8 Wire the resolver into the planner to pass 6.7
+    → 5 planner-launch tests written on real detector output [live] (2026-11-24)
+  - [X] 6.8 Wire the resolver into the planner to pass 6.7
     [verify: auto-test]
+    → wired; full suite 162 passed; live ripgrep plan: cargo build --release, target rg, CI steps noted as ignored [live] (2026-11-24)
 
 - [ ] 7.0 **User Story:** As a user, I want missing toolchains listed
   and installed only after I confirm so that nothing is installed
-  without my consent [10/0]
-  - [ ] 7.1 Create `recompt/pkgmgr/toolchains.py`: one table for about 10
+  without my consent [10/9]
+  - [X] 7.1 Create `recompt/pkgmgr/toolchains.py`: one table for about 10
     tools (node, python, cmake, meson, ninja, make, gcc/g++, pkg-config,
     autoconf, git) giving apt, brew and winget package names, the
     version command, and the regex that extracts the version
     [verify: code-only]
-  - [ ] 7.2 Write tests for the adapters: apt passes CI package names
+    → table of 15 tools with apt/brew/winget names, binary names, version command and regex; yarn/pnpm via npm (design updated) (2026-11-24)
+  - [X] 7.2 Write tests for the adapters: apt passes CI package names
     through as written and maps toolchains by table; brew and winget map
     toolchains only and mark system libraries `report-only`; Rust ->
     rustup and Go -> Go archive on every OS; MSVC Build Tools via
     winget; Xcode command-line tools `report-only` [verify: auto-test]
-  - [ ] 7.3 Implement `recompt/pkgmgr/{apt,brew,winget}.py` and the
+    → 6 adapter tests written, failed before adapters existed [live] (2026-11-24)
+  - [X] 7.3 Implement `recompt/pkgmgr/{apt,brew,winget}.py` and the
     rustup / Go-archive installers to pass 7.2 [verify: auto-test]
-  - [ ] 7.4 Write tests for `recompt/deps.py` on Linux: every
+    → adapters pass; apt -s dry run confirms every mapped package name exists [live] (2026-11-24)
+  - [X] 7.4 Write tests for `recompt/deps.py` on Linux: every
     requirement goes into the proposal; nothing is probed; no runner or
     process call is made [verify: auto-test]
-  - [ ] 7.5 Write tests for `recompt/deps.py` on macOS/Windows (OS,
+    → Linux no-probe test written [live] (2026-11-24)
+  - [X] 7.5 Write tests for `recompt/deps.py` on macOS/Windows (OS,
     `which` and version-command runner injected): tool present and at or
     above the minimum -> skipped; missing, or below the minimum by the
     parsed version -> proposed; no supported package manager ->
     `report-only` [verify: auto-test]
-  - [ ] 7.6 Implement `recompt/deps.py` to pass 7.4 and 7.5
+    → 4 host-probe tests written with injected which/version [live] (2026-11-24)
+  - [X] 7.6 Implement `recompt/deps.py` to pass 7.4 and 7.5
     [verify: auto-test]
-  - [ ] 7.7 Write tests for host PATH refresh after installs: cargo, Go
+    → deps passes; real probe here skips git/node/python and proposes cmake/ninja [live] (2026-11-24)
+  - [X] 7.7 Write tests for host PATH refresh after installs: cargo, Go
     and Homebrew folders added; on Windows the user and machine PATH
     read through an injected registry reader [verify: auto-test]
-  - [ ] 7.8 Implement PATH refresh to pass 7.7 [verify: auto-test]
-  - [ ] 7.9 Write and pass a test that a declined proposal produces no
+    → 2 PATH-refresh tests written (POSIX, Windows registry injected) [live] (2026-11-24)
+  - [X] 7.8 Implement PATH refresh to pass 7.7 [verify: auto-test]
+    → PATH refresh passes [live] (2026-11-24)
+  - [X] 7.9 Write and pass a test that a declined proposal produces no
     install Step in the plan handed to the runner [verify: auto-test]
+    → declined and report-only proposals give no install steps: passes; full suite 179 passed [live] (2026-11-24)
   - [ ] 7.10 User runs one confirmed install on the current OS (for
     example `cmake` through the adapter) and confirms the tool is found
     afterwards [verify: manual-run-user]

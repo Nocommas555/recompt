@@ -98,6 +98,10 @@ infrastructure with fakes. Only `cli` prompts or exits.
        `Requirement`; other `uses:` steps are skipped.
      - Steps containing `${{ ... }}` expressions are skipped and listed
        in plan notes.
+     - Steps whose name or command is about testing, linting,
+       formatting, coverage, uploading, deploying or publishing are
+       skipped with a note; they are not needed to build the program.
+     - `apt-get update` lines are dropped (base setup already updates).
      - Package-install lines (`apt-get install`, `brew install`,
        `choco`/`winget install`) become one `Requirement` per package;
        on Linux the apt line is also kept as an `install` step (`sudo`
@@ -121,8 +125,14 @@ infrastructure with fakes. Only `cli` prompts or exits.
    - Several runnable targets -> returned as choices for the CLI.
    - Project kind: from the highest-priority finding's ecosystem. `node`
      and `python` are `interpreted`; `rust`, `go` and `cfamily` are
-     `compiled`. A plan from CI or prose only is `compiled` when it has
-     a build step with an expected target, else `interpreted`.
+     `compiled`. A plan from CI or prose only is `interpreted` when it
+     has a launch step, else `compiled` when it has a build step, else
+     `interpreted`.
+   - Steps come from the highest-priority source that has non-install
+     steps; install steps from every source are kept (deduplicated). If
+     that source has no build step, build steps are filled from the
+     next source that has them, with a note. Other sources' differing
+     steps are recorded as a `conflict` note.
    - Notes from every finding are copied into `BuildPlan.notes`.
 
 4. **Launch resolver** (`recompt/launch.py`) — interpreted projects.
@@ -150,8 +160,16 @@ infrastructure with fakes. Only `cli` prompts or exits.
      etc.) to apt names.
    - brew, winget: the same toolchain table only. System libraries
      there are reported as missing, not installed.
-   - Rust and Go use their official installers (rustup, Go archive) on
-     every OS, because distribution packages are often too old.
+   - Rust uses rustup on Linux and macOS and the `Rustlang.Rustup`
+     winget package on Windows; Go uses the official archive on Linux
+     (distribution packages are often too old) and the Homebrew / winget
+     package elsewhere. yarn and pnpm install through `npm install -g`
+     (apt's `yarn` is an unrelated program).
+   - winget runs without auto-accepting license agreements, so the user
+     answers winget's own agreement prompt.
+   - On Linux the proposal covers every requirement, so CI `install`
+     steps are not run separately (they would install the same
+     packages again).
    - Native C/C++ toolchains (Xcode command-line tools, MSVC Build
      Tools): installed when the adapter can do so non-interactively
      (winget for MSVC Build Tools), otherwise reported as missing.
