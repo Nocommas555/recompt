@@ -91,8 +91,12 @@ def run_git(args: list[str], cwd: Path) -> GitResult:
     return GitResult(proc.returncode, proc.stdout, proc.stderr)
 
 
+def strip_credentials(text: str) -> str:
+    return URL_CREDENTIALS.sub(r"\1", text)
+
+
 def _clean(text: str) -> str:
-    return URL_CREDENTIALS.sub(r"\1", text).strip()
+    return strip_credentials(text).strip()
 
 
 def _fetch(src: NormalizedSource, ref: str | None, dest: Path, git: Git) -> None:

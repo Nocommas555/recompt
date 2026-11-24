@@ -1,5 +1,21 @@
-from recompt.detectors.common import req, root, step
+import re
+
+from recompt.detectors.common import min_version, req, root, step
 from recompt.models import DetectContext, Finding, PlanNote, WorkingCopy
+
+VERSION_PATTERNS = {
+    "cmake": ("CMakeLists.txt", re.compile(r"cmake_minimum_required\s*\(\s*VERSION\s+([\d.]+?)(?:\.\.\.|\s|\))", re.I)),
+    "meson": ("meson.build", re.compile(r"meson_version\s*:\s*'([^']*)'")),
+}
+
+
+def _tool_version(base, tool: str) -> str | None:
+    if tool not in VERSION_PATTERNS:
+        return None
+    filename, pattern = VERSION_PATTERNS[tool]
+    path = base / filename
+    match = pattern.search(path.read_text(errors="ignore")) if path.exists() else None
+    return min_version(match.group(1)) if match else None
 
 SYSTEMS = [
     (
@@ -40,7 +56,7 @@ def detect(copy: WorkingCopy, ctx: DetectContext) -> list[Finding]:
         Finding(
             detector="cfamily",
             ecosystem="cfamily",
-            requirements=[req(t, origin) for t in tools],
+            requirements=[req(t, origin, _tool_version(base, t)) for t in tools],
             steps=steps,
             notes=notes,
         )

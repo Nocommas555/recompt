@@ -26,7 +26,7 @@ STEP_ENV = {
     "npm_config_cache": f"{OPT}/npm-cache",
     "PIP_CACHE_DIR": f"{OPT}/pip-cache",
     "DEBIAN_FRONTEND": "noninteractive",
-    "PATH": f"{OPT}/cargo/bin:{OPT}/go/bin:{OPT}/gopath/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "PATH": f"{OPT}/tools/bin:{OPT}/cargo/bin:{OPT}/go/bin:{OPT}/gopath/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 }
 BASE_SETUP = (
     "apt-get update && apt-get install -y --no-install-recommends ca-certificates git curl build-essential && "
@@ -188,6 +188,7 @@ class ContainerRunner:
             result = self.run_cmd(self._start_args(self.image))
         if result.returncode != 0:
             raise BuildFailedError(f"Cannot start the build container: {result.stderr.strip()}")
+        self.on_output(f"$ {BASE_SETUP}")
         code = self._exec(self.users.root, "/", ["sh", "-c", BASE_SETUP], OutputTail(self.on_output))
         if code != 0:
             raise BuildFailedError("Preparing the build container failed")

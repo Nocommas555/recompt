@@ -31,10 +31,18 @@ def test_node_main_then_nothing(tmp_path):
     assert resolve_launch(node(tmp_path / "empty"), "node", "linux") is None
 
 
+BUILD = '[build-system]\nrequires = ["setuptools"]\n'
+
+
 def test_python_project_scripts(tmp_path):
-    copy = make_project(tmp_path, {"pyproject.toml": '[project]\nname = "x"\n[project.scripts]\nmytool = "x.cli:main"\nother = "x:o"\n'})
+    copy = make_project(tmp_path, {"pyproject.toml": BUILD + '[project]\nname = "x"\n[project.scripts]\nmytool = "x.cli:main"\nother = "x:o"\n'})
     assert resolve_launch(copy, "python", "linux") == [".venv/bin/mytool"]
     assert resolve_launch(copy, "python", "windows") == [".venv\\Scripts\\mytool.exe"]
+
+
+def test_python_scripts_ignored_when_project_is_not_installed(tmp_path):
+    copy = make_project(tmp_path, {"pyproject.toml": '[project]\nname = "x"\n[project.scripts]\nmytool = "x:m"\n', "main.py": ""})
+    assert resolve_launch(copy, "python", "linux") == [".venv/bin/python", "main.py"]
 
 
 @pytest.mark.parametrize("layout", ["pkg/__main__.py", "src/pkg/__main__.py"])

@@ -86,14 +86,17 @@ infrastructure with fakes. Only `cli` prompts or exits.
    then CI, then Dockerfile). The `readme` detector is not in the
    registry; the planner receives it as an injected callable.
    - Build files: `node` (package.json; lockfile picks npm/yarn/pnpm),
-     `python` (pyproject.toml, setup.py, requirements.txt), `rust`
+     `python` (pyproject.toml, setup.py, requirements.txt; `pip install .`
+     only with a `[build-system]` table or setup.py, a `[project]` table
+     without one installs just its dependencies, and a pyproject.toml with
+     only `[tool.*]` settings is not a Python project), `rust`
      (Cargo.toml), `go` (go.mod), `cfamily` (CMakeLists.txt,
      meson.build, configure / configure.ac, Makefile).
    - CI (`github_actions`, `gitlab_ci`): CI steps are plan steps, with
      these rules:
      - GitHub Actions: pick the job whose `runs-on` matches the host OS
-       (else the first Linux job); in a matrix, the entry matching the
-       host OS.
+       (else a Linux job), preferring a job named like build/compile;
+       in a matrix, the entry matching the host OS.
      - `uses: actions/setup-<lang>` (and `with:` version) becomes a
        `Requirement`; other `uses:` steps are skipped.
      - Steps containing `${{ ... }}` expressions are skipped and listed
@@ -129,9 +132,12 @@ infrastructure with fakes. Only `cli` prompts or exits.
      has a launch step, else `compiled` when it has a build step, else
      `interpreted`.
    - Steps come from the highest-priority source that has non-install
-     steps; install steps from every source are kept (deduplicated). If
-     that source has no build step, build steps are filled from the
-     next source that has them, with a note. Other sources' differing
+     steps. Install steps found in CI files are not copied into the plan;
+     their packages are already requirements, and the dependency
+     proposal installs them. If
+     that source has no build step and is not an interpreted ecosystem
+     (node, python), build steps are filled from the next source that
+     has them, with a note. Other sources' differing
      steps are recorded as a `conflict` note.
    - Notes from every finding are copied into `BuildPlan.notes`.
 
@@ -157,7 +163,11 @@ infrastructure with fakes. Only `cli` prompts or exits.
      (winget).
    - apt: package names from CI install lines pass through as written;
      a small table maps about 10 toolchains (node, python, cmake, meson,
-     etc.) to apt names.
+     etc.) to apt names. When CMake, Meson or Ninja has a minimum version
+     (read from `cmake_minimum_required` / `meson_version`), it is
+     installed from PyPI into `/opt/recompt/tools` instead, because the
+     distribution's package is often older; that folder is first on
+     `PATH` in the container.
    - brew, winget: the same toolchain table only. System libraries
      there are reported as missing, not installed.
    - Rust uses rustup on Linux and macOS and the `Rustlang.Rustup`
@@ -402,6 +412,16 @@ cli ──> pipeline.run(input, options)
           ├─ collect.result(plan) ────────────> RunResult         (4)
           └─ finally: runner.stop(); report.result(); exit code
 ```
+
+### Pipeline rules
+
+- Install steps come only from the dependency proposal; a plan's own
+  `install` steps (CI package lines) are never run directly.
+- Report-only dependencies are listed as a warning and the run
+  continues; a later build failure shows whether they mattered.
+- With `--host-build` on Linux, missing tools are only reported;
+  recompt never runs apt as root on the host.
+- Launch steps are never run; v1 returns the launch command.
 
 ### Error Handling
 

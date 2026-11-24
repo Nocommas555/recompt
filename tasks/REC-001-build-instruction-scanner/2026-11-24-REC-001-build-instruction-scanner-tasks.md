@@ -477,17 +477,19 @@
 
 - [ ] 9.0 **User Story:** As a user, I want one `recompt` command that
   runs the whole pipeline, previews the plan, and reports the program
-  location or launch command with clear exit codes [14/0]
-  - [ ] 9.1 Write tests for `recompt/collect.py`: compiled -> expected
+  location or launch command with clear exit codes [14/13]
+  - [X] 9.1 Write tests for `recompt/collect.py`: compiled -> expected
     target path when given; otherwise executables modified after run
     start, excluding `.git`, `node_modules`, `.venv`, `venv`, `vendor`,
     `__pycache__`, `target/debug`, `build/CMakeFiles` (`.exe` on
     Windows, executable bit on POSIX); several -> candidates; none ->
     NoRunnableOutputError; interpreted -> the plan's launch command, or
     NoRunnableOutputError when there is none [verify: auto-test]
-  - [ ] 9.2 Implement `recompt/collect.py` to pass 9.1
+    → 7 collector tests written, failed before collect.py existed [live] (2026-11-24)
+  - [X] 9.2 Implement `recompt/collect.py` to pass 9.1
     [verify: auto-test]
-  - [ ] 9.3 Write tests for `recompt/pipeline.py` with all stages faked:
+    → collector passes [live] (2026-11-24)
+  - [X] 9.3 Write tests for `recompt/pipeline.py` with all stages faked:
     stage order matches the design's Sequence; preview returns after the
     proposal with zero runner and process calls; the runner comes from
     the factory and `start()` runs only after confirmation; `stop()`
@@ -495,41 +497,52 @@
     declined install proposal -> DepsMissingError and no install step
     runs; `RunResult` carries completed steps, missing requirements and
     `prompts_asked` [verify: auto-test]
-  - [ ] 9.4 Implement `recompt/pipeline.py` to pass 9.3
+    → 16 pipeline tests written with all stages faked [live] (2026-11-24)
+  - [X] 9.4 Implement `recompt/pipeline.py` to pass 9.3
     [verify: auto-test]
-  - [ ] 9.5 Write tests for confirmation rules in `recompt/cli.py`: on
+    → pipeline passes; install, report-only and host-build rules added to the design [live] (2026-11-24)
+  - [X] 9.5 Write tests for confirmation rules in `recompt/cli.py`: on
     Linux, installs are listed but not prompted; on macOS/Windows they
     are prompted and `--yes` approves them; prose steps always need an
     interactive yes, `--yes` does not cover them; with no terminal,
     prose steps are refused -> NoPlanError; several targets -> asks
     which one [verify: auto-test]
-  - [ ] 9.6 Write tests for `recompt/cli.py` arguments and exit codes:
+    → 5 confirmation tests written; Linux no-prompt rule covered in pipeline tests [live] (2026-11-24)
+  - [X] 9.6 Write tests for `recompt/cli.py` arguments and exit codes:
     source, `--ref`, `--preview`, `--host-build`, `--timeout`, `--llm`,
     `--yes` parsed; each RecomptError subclass -> its exit code (one test
     per code); Ctrl-C -> 130; errors caught once in `main`
     [verify: auto-test]
-  - [ ] 9.7 Implement `recompt/cli.py` to pass 9.5 and 9.6
+    → 13 argument and exit-code tests written [live] (2026-11-24)
+  - [X] 9.7 Implement `recompt/cli.py` to pass 9.5 and 9.6
     [verify: auto-test]
-  - [ ] 9.8 Write tests for `recompt/report.py`: plan printout shows each
+    → cli passes [live] (2026-11-24)
+  - [X] 9.8 Write tests for `recompt/report.py`: plan printout shows each
     step's source and every note; local-folder runs warn that output is
     written there; a notice is printed before README text is sent to
     Claude; a ports-not-mapped warning when the plan has that note;
     final result shows program path or launch command, or the failing
     step and its error output [verify: auto-test]
-  - [ ] 9.9 Write tests for the run log: every executed command is
+    → 4 report tests written [live] (2026-11-24)
+  - [X] 9.9 Write tests for the run log: every executed command is
     written; credentials are stripped from URLs in the log
     [verify: auto-test]
-  - [ ] 9.10 Implement `recompt/report.py` and the log to pass 9.8 and
+    → log test written: commands logged, credentials stripped [live] (2026-11-24)
+  - [X] 9.10 Implement `recompt/report.py` and the log to pass 9.8 and
     9.9 [verify: auto-test]
-  - [ ] 9.11 Run `recompt --preview` on a real Rust and a real Node repo;
+    → report and log pass; full suite 272 passed [live] (2026-11-24)
+  - [X] 9.11 Run `recompt --preview` on a real Rust and a real Node repo;
     confirm the plan, sources and install list are printed and no
     container was started [verify: manual-run-claude]
-  - [ ] 9.12 Run `recompt` on a real repo and press Ctrl-C mid-build;
+    → preview on ripgrep and express prints plan, sources and installs, no container started; found and fixed CI job choice and interpreted build-fill bugs [live] (2026-11-24)
+  - [X] 9.12 Run `recompt` on a real repo and press Ctrl-C mid-build;
     confirm exit 130, completed steps listed, no `recompt=1` container
     left [verify: docker]
-  - [ ] 9.13 Run `recompt --host-build` on Linux on a small repo and
+    → real ripgrep run interrupted: exit 130, no recompt container left; an uninterrupted run built rg, which runs on the host [live] (2026-11-24)
+  - [X] 9.13 Run `recompt --host-build` on Linux on a small repo and
     confirm it builds on the host without a container
     [verify: manual-run-claude]
+    → --host-build on a local C project built with host make and no container; program runs [live] (2026-11-24)
   - [ ] 9.14 User runs `recompt` end to end on one compiled and one
     interpreted repo on Linux and confirms the program runs and the
     launch command starts the app [verify: manual-run-user]

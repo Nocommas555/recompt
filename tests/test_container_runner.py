@@ -203,7 +203,7 @@ def test_build_step_exec_user_env_and_workdir():
     assert env["CARGO_HOME"] == "/opt/recompt/cargo" and env["RUSTUP_HOME"] == "/opt/recompt/rustup"
     assert env["GOPATH"] == "/opt/recompt/gopath"
     assert env["npm_config_cache"].startswith("/opt/recompt") and env["PIP_CACHE_DIR"].startswith("/opt/recompt")
-    assert env["PATH"].startswith("/opt/recompt/cargo/bin:")
+    assert env["PATH"].startswith("/opt/recompt/tools/bin:/opt/recompt/cargo/bin:")
     assert argv[-2:] == ["cargo", "build"]
     assert argv[argv.index("recompt-abc123") + 1 :] == ["cargo", "build"]
 

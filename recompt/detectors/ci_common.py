@@ -34,6 +34,21 @@ def _apt_step_command(line: str) -> str:
     return command
 
 
+def join_continuations(lines: list[str]) -> list[str]:
+    joined: list[str] = []
+    pending = ""
+    for raw in lines:
+        line = raw.rstrip()
+        if line.endswith("\\"):
+            pending += line[:-1].strip() + " "
+            continue
+        joined.append(pending + line.strip() if pending else line)
+        pending = ""
+    if pending:
+        joined.append(pending.strip())
+    return joined
+
+
 def process_script(
     lines: list[str],
     *,
@@ -46,7 +61,7 @@ def process_script(
     installs: list[Step] = []
     requirements: list[Requirement] = []
     kept: list[str] = []
-    for raw in lines:
+    for raw in join_continuations(lines):
         line = raw.strip()
         if not line or line.startswith("#") or APT_UPDATE.match(line):
             continue

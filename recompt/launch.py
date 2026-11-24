@@ -30,8 +30,9 @@ def _python(base: Path, host_os: str) -> list[str] | None:
 
     pyproject = base / "pyproject.toml"
     if pyproject.exists():
-        scripts = tomllib.loads(pyproject.read_text()).get("project", {}).get("scripts", {})
-        if scripts:
+        data = tomllib.loads(pyproject.read_text())
+        scripts = data.get("project", {}).get("scripts", {})
+        if scripts and "build-system" in data:
             name = next(iter(scripts))
             return [venv_bin + name + (".exe" if windows else "")]
     for folder in (base, base / "src"):

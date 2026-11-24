@@ -16,6 +16,7 @@ class ToolInfo:
     version_cmd: list[str] = field(default_factory=lambda: ["--version"])
     version_regex: str = r"(\d+(?:\.\d+)+)"
     installer: Installer = "package"
+    pypi: str | None = None
 
 
 def _tool(name, apt, brew, winget, bin_windows=None, **kw) -> ToolInfo:
@@ -25,9 +26,9 @@ def _tool(name, apt, brew, winget, bin_windows=None, **kw) -> ToolInfo:
 TOOLCHAINS: dict[str, ToolInfo] = {
     "node": _tool("node", ["nodejs", "npm"], "node", "OpenJS.NodeJS.LTS", version_regex=r"v?(\d+(?:\.\d+)+)"),
     "python": _tool("python3", ["python3", "python3-venv", "python3-pip"], "python", "Python.Python.3.12", "python"),
-    "cmake": _tool("cmake", ["cmake"], "cmake", "Kitware.CMake"),
-    "meson": _tool("meson", ["meson"], "meson", "mesonbuild.meson"),
-    "ninja": _tool("ninja", ["ninja-build"], "ninja", "Ninja-build.Ninja"),
+    "cmake": _tool("cmake", ["cmake"], "cmake", "Kitware.CMake", pypi="cmake"),
+    "meson": _tool("meson", ["meson"], "meson", "mesonbuild.meson", pypi="meson"),
+    "ninja": _tool("ninja", ["ninja-build"], "ninja", "Ninja-build.Ninja", pypi="ninja"),
     "make": _tool("make", ["make"], "make", "ezwinports.make"),
     "c-compiler": _tool(
         "cc", ["build-essential"], None, "Microsoft.VisualStudio.2022.BuildTools", "cl", version_cmd=["--version"]
@@ -53,6 +54,9 @@ GO_ARCHIVE = (
     "v=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -n1); "
     "curl -fsSL \"https://go.dev/dl/$v.linux-$arch.tar.gz\" | tar -C /opt/recompt -xz"
 )
+
+
+TOOLS_VENV = "/opt/recompt/tools"
 
 
 def install_step(command, *, as_root: bool, shell: str = "exec") -> Step:

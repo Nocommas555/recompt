@@ -39,6 +39,16 @@ def _is_satisfied(req: Requirement, host_os: str, which: Which, version_of: RunV
     return _version_tuple(match.group(1)) >= _version_tuple(req.min_version)
 
 
+def missing(
+    requirements: list[Requirement],
+    host_os: str,
+    *,
+    which: Which = shutil.which,
+    run_version: RunVersion = run_version,
+) -> list[Requirement]:
+    return [r for r in requirements if not _is_satisfied(r, host_os, which, run_version)]
+
+
 def propose(
     requirements: list[Requirement],
     host_os: str,
@@ -47,7 +57,7 @@ def propose(
     run_version: RunVersion = run_version,
 ) -> list[InstallProposal]:
     if host_os != "linux":
-        requirements = [r for r in requirements if not _is_satisfied(r, host_os, which, run_version)]
+        requirements = missing(requirements, host_os, which=which, run_version=run_version)
     return ADAPTERS[host_os].propose(requirements)
 
 

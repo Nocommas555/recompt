@@ -42,12 +42,10 @@ def plan(findings, readme=never):
     return build_plan(findings, copy=COPY, host_os="linux", readme_fallback=readme)
 
 
-def test_build_files_win_and_lower_sources_add_requirements_and_installs():
+def test_build_files_win_and_lower_sources_add_requirements_only():
     p = plan([RUST, CI, DOCKER])
-    non_install = [st.command for st in p.steps if st.kind != "install"]
-    assert non_install == [["cargo", "build", "--release"]]
-    assert [st.command for st in p.steps if st.kind == "install"] == ["apt-get install -y libssl-dev"]
-    assert p.steps[0].kind == "install"
+    assert [st.command for st in p.steps] == [["cargo", "build", "--release"]]
+    assert all(st.kind != "install" for st in p.steps)
     tools = {req.tool: req for req in p.requirements}
     assert set(tools) == {"cargo", "libssl-dev", "pkg-config"}
     assert tools["cargo"].source == Source.BUILD_FILE and tools["cargo"].min_version == "1.74"
@@ -61,17 +59,25 @@ def test_conflicting_lower_steps_are_noted_and_finding_notes_copied():
     assert any(n.kind == "skipped" for n in p.notes)
 
 
-def test_missing_build_step_is_filled_from_next_source():
+def test_missing_build_step_of_compiled_project_is_filled_from_next_source():
+    c = Finding(detector="cfamily", ecosystem="cfamily", steps=[s("setup", "./bootstrap", Source.BUILD_FILE)])
+    ci = Finding(detector="github_actions", steps=[s("build", "make", Source.CI, "ci.yml:b")])
+    p = plan([c, ci])
+    assert [st.command for st in p.steps] == ["./bootstrap", "make"]
+    assert any(n.kind == "warning" and "ci.yml:b" in n.sources for n in p.notes)
+
+
+def test_interpreted_project_is_not_filled_with_ci_build_steps():
     node = Finding(
         detector="node",
         ecosystem="node",
         requirements=[r("node", Source.BUILD_FILE)],
         steps=[s("setup", ["npm", "ci"], Source.BUILD_FILE)],
     )
-    ci = Finding(detector="github_actions", steps=[s("build", "npx tsc", Source.CI, "ci.yml:b")])
+    ci = Finding(detector="github_actions", steps=[s("build", "npm install --ignore-scripts", Source.CI, "ci.yml:b")])
     p = plan([node, ci])
-    assert [st.command for st in p.steps] == [["npm", "ci"], "npx tsc"]
-    assert any(n.kind == "warning" and "ci.yml:b" in n.sources for n in p.notes)
+    assert [st.command for st in p.steps] == [["npm", "ci"]]
+    assert any(n.kind == "conflict" for n in p.notes)
 
 
 def test_readme_fallback_only_called_without_build_steps():

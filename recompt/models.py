@@ -99,7 +99,7 @@ class BuildPlan(BaseModel):
 
 
 class InstallProposal(BaseModel):
-    manager: Literal["apt", "brew", "winget", "rustup", "go-archive", "npm", "report-only"]
+    manager: Literal["apt", "brew", "winget", "rustup", "go-archive", "npm", "pip", "report-only"]
     packages: list[str] = Field(default_factory=list)
     commands: list[Step] = Field(default_factory=list)
 

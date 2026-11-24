@@ -22,6 +22,27 @@ def test_cmake(tmp_path):
     ]
 
 
+@pytest.mark.parametrize(
+    "line, version",
+    [
+        ("cmake_minimum_required(VERSION 3.31)", "3.31"),
+        ("CMAKE_MINIMUM_REQUIRED( VERSION 3.20...3.31 FATAL_ERROR )", "3.20"),
+        ("project(x)", None),
+    ],
+)
+def test_cmake_minimum_version_is_read(tmp_path, line, version):
+    [f] = detect(make_project(tmp_path, {"CMakeLists.txt": f"# comment\n{line}\nproject(x)\n"}), ctx())
+    cmake = next(r for r in f.requirements if r.tool == "cmake")
+    assert cmake.min_version == version
+
+
+def test_meson_version_is_read(tmp_path):
+    content = "project('x', 'c',\n  version: '1.0',\n  meson_version: '>= 1.3.0')\n"
+    [f] = detect(make_project(tmp_path, {"meson.build": content}), ctx())
+    meson = next(r for r in f.requirements if r.tool == "meson")
+    assert meson.min_version == "1.3.0"
+
+
 def test_meson(tmp_path):
     [f] = detect(make_project(tmp_path, {"meson.build": "project('x')"}), ctx())
     assert {"meson", "ninja", "c-compiler"} <= tools(f)

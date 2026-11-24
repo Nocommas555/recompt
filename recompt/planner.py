@@ -41,16 +41,6 @@ def _requirements(groups: dict[Source, list[Finding]]) -> list[Requirement]:
     return list(merged.values())
 
 
-def _installs(findings: list[Finding]) -> list[Step]:
-    seen, result = set(), []
-    for step in (s for f in findings for s in f.steps if s.kind == "install"):
-        key = str(step.command)
-        if key not in seen:
-            seen.add(key)
-            result.append(step)
-    return result
-
-
 def _project_kind(primary: list[Finding], steps: list[Step]) -> str:
     ecosystem = next((f.ecosystem for f in primary if f.ecosystem), None)
     if ecosystem in INTERPRETED:
@@ -88,7 +78,8 @@ def build_plan(
     primary = groups[primary_source]
     steps = _work(primary)
 
-    if not any(s.kind == "build" for s in steps):
+    primary_ecosystem = next((f.ecosystem for f in primary if f.ecosystem), None)
+    if primary_ecosystem not in INTERPRETED and not any(s.kind == "build" for s in steps):
         donor = next((src for src in others if any(s.kind == "build" for s in _work(groups[src]))), None)
         if donor is not None:
             filled = [s for s in _work(groups[donor]) if s.kind == "build"]
@@ -121,7 +112,7 @@ def build_plan(
 
     return BuildPlan(
         project_kind=kind,
-        steps=_installs(findings) + steps,
+        steps=steps,
         requirements=_requirements(groups),
         targets=[t for f in primary for t in f.targets],
         notes=notes,

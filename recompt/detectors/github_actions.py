@@ -10,6 +10,9 @@ from recompt.models import DetectContext, Finding, PlanNote, Requirement, Source
 SETUP_ACTION = re.compile(r"^actions/setup-(\w+)@")
 MATRIX_REF = re.compile(r"\$\{\{\s*matrix\.(\w+)\s*\}\}")
 SHELLS = {"bash": "bash", "sh": "sh", "pwsh": "pwsh", "powershell": "pwsh", "cmd": "cmd"}
+BUILD_JOB = re.compile(r"build|compile", re.I)
+QUOTED = re.compile(r"'([^']+)'")
+OS_WORDS = {"linux": ("linux", "ubuntu"), "macos": ("macos", "mac", "darwin"), "windows": ("windows", "win")}
 
 
 def _label_os(label: str) -> str | None:
@@ -32,6 +35,8 @@ def _job_oses(job: dict) -> list[str]:
         ref = MATRIX_REF.search(label)
         if ref and isinstance(matrix.get(ref.group(1)), list):
             expanded += [str(v) for v in matrix[ref.group(1)]]
+        elif "${{" in label:
+            expanded += QUOTED.findall(label)
         else:
             expanded.append(label)
     return [os for os in map(_label_os, expanded) if os]
@@ -57,10 +62,18 @@ def _select_job(workflows, host_os: str):
         for name, job in (data.get("jobs") or {}).items()
         if isinstance(job, dict)
     ]
+    def rank(entry, want):
+        file, _, name, _ = entry
+        stem = file.rsplit(".", 1)[0].lower()
+        return (
+            any(word in stem for word in OS_WORDS[want]),
+            bool(BUILD_JOB.search(stem) or BUILD_JOB.search(name)),
+        )
+
     for want in (host_os, "linux"):
-        for entry in jobs:
-            if want in _job_oses(entry[3]):
-                return entry
+        matching = [entry for entry in jobs if want in _job_oses(entry[3])]
+        if matching:
+            return max(matching, key=lambda e: rank(e, want))
     return jobs[0] if jobs else None
 
 
@@ -97,7 +110,7 @@ def detect(copy: WorkingCopy, ctx: DetectContext) -> list[Finding]:
             continue
         label = item.get("name") or run.splitlines()[0]
         if "${{" in run:
-            finding.notes.append(PlanNote(kind="skipped", message=f"CI step uses expressions: {run.strip()}", sources=[origin]))
+            finding.notes.append(PlanNote(kind="skipped", message=f"CI step uses expressions: {label.strip()}", sources=[origin]))
             continue
         if NOT_FOR_BUILDING.search(item.get("name", "")) or NOT_FOR_BUILDING.search(run):
             finding.notes.append(PlanNote(kind="skipped", message=f"CI step not needed to build: {label}", sources=[origin]))

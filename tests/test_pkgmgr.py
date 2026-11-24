@@ -38,6 +38,27 @@ def test_apt_uses_rustup_go_archive_and_npm_for_special_tools():
     assert "node" in found["apt"].packages or "nodejs" in found["apt"].packages
 
 
+def test_apt_installs_versioned_build_tools_from_pypi():
+    versioned = [
+        Requirement(tool="cmake", min_version="3.31", source=Source.BUILD_FILE),
+        Requirement(tool="ninja", min_version="1.11", source=Source.BUILD_FILE),
+        Requirement(tool="make", source=Source.BUILD_FILE),
+    ]
+    found = by_manager(apt.propose(versioned))
+    assert set(found["pip"].packages) == {"cmake>=3.31", "ninja>=1.11"}
+    assert {"python3", "python3-venv", "make"} <= set(found["apt"].packages)
+    assert "cmake" not in found["apt"].packages
+    [step] = found["pip"].commands
+    assert step.as_root is True
+    assert "/opt/recompt/tools/bin/pip install" in step.command
+    assert "'cmake>=3.31'" in step.command and "'ninja>=1.11'" in step.command
+
+
+def test_apt_uses_distro_cmake_without_min_version():
+    found = by_manager(apt.propose(reqs("cmake")))
+    assert "pip" not in found and "cmake" in found["apt"].packages
+
+
 def test_brew_maps_toolchains_and_reports_unknown_and_xcode():
     found = by_manager(brew.propose(reqs("cmake", "pkg-config", "libssl-dev", "c-compiler", "go", "cargo")))
     assert set(found["brew"].packages) == {"cmake", "pkgconf", "go"}

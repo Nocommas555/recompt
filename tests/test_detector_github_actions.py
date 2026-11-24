@@ -36,6 +36,58 @@ def test_job_matching_host_os_is_picked(tmp_path, host, expected):
     assert all(s.source == Source.CI for s in f.steps)
 
 
+def test_build_named_job_is_preferred_among_matching_jobs(tmp_path):
+    jobs = {
+        "check": {"runs-on": "ubuntu-latest", "steps": [{"run": "npm install --ignore-scripts"}]},
+        "release-build": {"runs-on": "ubuntu-latest", "steps": [{"run": "make release"}]},
+    }
+    [f] = detect(project(tmp_path, jobs), ctx())
+    assert run_lines(f) == ["make release"]
+
+
+def test_runs_on_expression_with_quoted_labels_is_recognised(tmp_path):
+    jobs = {
+        "a-mac": {"runs-on": "macos-14", "steps": [{"run": "make mac"}]},
+        "build": {
+            "runs-on": "${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}",
+            "steps": [{"run": "make"}],
+        },
+    }
+    [f] = detect(project(tmp_path, jobs), ctx("linux"))
+    assert run_lines(f) == ["make"]
+
+
+def test_workflow_file_named_for_host_os_wins(tmp_path):
+    copy = make_project(
+        tmp_path,
+        {
+            ".github/workflows/audit.yml": workflow({"tidy": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo tidy"}]}}),
+            ".github/workflows/build-linux.yml": workflow({"job": {"runs-on": "ubuntu-24.04", "steps": [{"run": "make"}]}}),
+            ".github/workflows/build-macos.yml": workflow({"job": {"runs-on": "macos-14", "steps": [{"run": "make mac"}]}}),
+        },
+    )
+    [f] = detect(copy, ctx("linux"))
+    assert run_lines(f) == ["make"]
+    [f] = detect(copy, ctx("macos"))
+    assert run_lines(f) == ["make mac"]
+
+
+def test_backslash_continued_install_line_keeps_every_package(tmp_path):
+    script = (
+        "sudo apt-get update\n"
+        "sudo apt-get install -y --no-install-recommends \\\n"
+        "  cmake g++ libx11-dev \\\n"
+        "  qt6-base-private-dev zlib1g-dev\n"
+        "make"
+    )
+    jobs = {"b": {"runs-on": "ubuntu-latest", "steps": [{"run": script}]}}
+    [f] = detect(project(tmp_path, jobs), ctx())
+    assert {"cmake", "g++", "libx11-dev", "qt6-base-private-dev", "zlib1g-dev"} <= {r.tool for r in f.requirements}
+    [install] = [s for s in f.steps if s.kind == "install"]
+    assert "\\" not in install.command and "zlib1g-dev" in install.command
+    assert run_lines(f) == ["make"]
+
+
 def test_falls_back_to_first_linux_job(tmp_path):
     jobs = {"a": {"runs-on": "macos-latest", "steps": [{"run": "x"}]}, "b": {"runs-on": "ubuntu-22.04", "steps": [{"run": "y"}]}}
     [f] = detect(project(tmp_path, jobs), ctx("windows"))
@@ -75,10 +127,11 @@ def test_setup_actions_become_requirements_and_other_uses_are_skipped(tmp_path):
 
 
 def test_expression_steps_are_skipped_with_note(tmp_path):
-    jobs = {"b": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo ${{ secrets.X }}"}, {"run": "make"}]}}
+    jobs = {"b": {"runs-on": "ubuntu-latest", "steps": [{"run": "echo ${{ secrets.X }}\necho two\necho three"}, {"run": "make"}]}}
     [f] = detect(project(tmp_path, jobs), ctx())
     assert run_lines(f) == ["make"]
-    assert any(n.kind == "skipped" and "secrets.X" in n.message for n in f.notes)
+    [note] = [n for n in f.notes if n.kind == "skipped"]
+    assert "secrets.X" in note.message and "\n" not in note.message
 
 
 def test_test_and_upload_steps_are_skipped_with_note(tmp_path):
