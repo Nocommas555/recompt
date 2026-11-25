@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from recompt import collect as collect_mod
-from recompt import deps, errors, planner, runners, source
+from recompt import deps, errors, hostlibs, planner, runners, source
 from recompt.detectors import detect_all
 from recompt.detectors import readme as readme_detector
 from recompt.models import (
@@ -80,6 +80,8 @@ class Pipeline:
         missing=deps.missing,
         make_runner=runners.make_runner,
         collect=collect_mod.collect,
+        host_check=hostlibs.check,
+        host_libraries=hostlibs.host_library_names,
         clock=time.time,
         run_id: str | None = None,
     ):
@@ -94,6 +96,8 @@ class Pipeline:
         self.missing = missing
         self.make_runner = make_runner
         self.collect = collect
+        self.host_check = host_check
+        self.host_libraries = host_libraries
         self.clock = clock
         self.run_id = run_id or uuid.uuid4().hex[:8]
         self.result = RunResult(status="ok")
@@ -134,6 +138,27 @@ class Pipeline:
             raise errors.DepsMissingError("Missing dependencies were not installed: "
                                           + ", ".join(pkg for p in installable for pkg in p.packages))
         return deps.install_steps(installable, approved=True)
+
+    def _check_host_libraries(self, runner, program: str, workdir: str) -> None:
+        libraries = self.host_libraries()
+        if libraries is None:
+            self.ui.warn("ldconfig is not available on this machine, so the host library check was skipped")
+            return
+        missing, warnings = self.host_check([program], workdir, runner.capture, libraries)
+        for warning in warnings:
+            self.ui.warn(warning)
+        if not missing:
+            return
+        self.result.missing_host_libraries = missing
+        packages = [lib.package for lib in missing if lib.package]
+        unowned = [lib.name for lib in missing if not lib.package]
+        message = ("The program needs shared libraries that are not installed on this machine: "
+                   + ", ".join(lib.name for lib in missing))
+        if packages:
+            message += "\n  Install them with: sudo apt install " + " ".join(dict.fromkeys(packages))
+        if unowned:
+            message += "\n  No apt package in the build container provides: " + ", ".join(unowned)
+        self.ui.warn(message)
 
     def _run(self, opts: RunOptions) -> RunResult:
         copy = self.resolve(opts.source, opts.ref)
@@ -191,6 +216,8 @@ class Pipeline:
                 self.result.program_path = (
                     programs[0] if len(programs) == 1 else self._choose("Several programs were built. Which one?", programs)
                 )
+                if self.host_os == "linux" and not opts.host_build and hasattr(runner, "capture"):
+                    self._check_host_libraries(runner, self.result.program_path, copy.path)
             return self.result
         except (errors.StepTimeoutError, errors.CancelledError, KeyboardInterrupt):
             runner.kill()

@@ -273,3 +273,17 @@ def test_commit_and_launch_command():
     assert env_of(cmd)["HOME"] == "/opt/recompt/home"
     assert cmd[-3:] == [tag, "npm", "start"]
     assert "sleep" not in cmd
+
+
+def test_capture_runs_in_the_container_as_build_user_and_returns_full_output():
+    lines = "\n".join(f"line {i}" for i in range(100))
+    run = fake_cmd({("docker", "exec"): CmdResult(0, lines, "")})
+    r, processes = make_runner(run_cmd=run)
+    got = r.capture(["readelf", "-d", "/src/bin/app"])
+    argv = run.calls[-1]
+    assert argv[:2] == ["docker", "exec"]
+    assert argv[argv.index("--user") + 1] == "1000:1001"
+    assert argv[argv.index("-w") + 1] == "/src"
+    assert argv[-4:] == ["recompt-abc123", "readelf", "-d", "/src/bin/app"]
+    assert got.returncode == 0 and got.stdout == lines
+    assert processes == []

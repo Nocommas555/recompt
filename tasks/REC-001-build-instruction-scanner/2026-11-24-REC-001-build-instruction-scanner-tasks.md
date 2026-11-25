@@ -29,6 +29,8 @@
 - [recompt/runners/](../../recompt/runners/) :: Runner interface, factory,
   ContainerRunner, HostRunner
 - [recompt/collect.py](../../recompt/collect.py) :: Finds the built program
+- [recompt/hostlibs.py](../../recompt/hostlibs.py) :: Lists shared
+  libraries a container-built program is missing on the host
 - [recompt/pipeline.py](../../recompt/pipeline.py) :: Runs the stages
 - [recompt/cli.py](../../recompt/cli.py) :: Arguments, prompts, exit codes
 - [recompt/report.py](../../recompt/report.py) :: Console and log output
@@ -477,7 +479,7 @@
 
 - [ ] 9.0 **User Story:** As a user, I want one `recompt` command that
   runs the whole pipeline, previews the plan, and reports the program
-  location or launch command with clear exit codes [15/13]
+  location or launch command with clear exit codes [16/15]
   - [X] 9.1 Write tests for `recompt/collect.py`: compiled -> expected
     target path when given; otherwise executables modified after run
     start, excluding `.git`, `node_modules`, `.venv`, `venv`, `vendor`,
@@ -564,6 +566,24 @@
     → 2 regression tests added; 292 passed, 0 failed [live] (2026-11-25)
     → on the real Eglantine build folder the old code listed 5 CMake
       probe files first, the fix lists only bin/eden-cli and bin/eglantine [live] (2026-11-25)
+  - [X] 9.16 Host library check after a Linux container build: write
+    tests, then add `recompt/hostlibs.py` (`readelf -d` in the
+    container, `ldconfig -p` and `RUNPATH` on the host, `dpkg -S` in the
+    container for owners), the `HostLibrary` model and
+    `RunResult.missing_host_libraries`, the pipeline call before
+    `runner.stop()`, and the report warning with one
+    `sudo apt install` line; exit code stays 0; nothing is installed on
+    the host. Tests use a fake runner: missing library with package,
+    library present via `ldconfig`, library found in `$ORIGIN` RUNPATH,
+    missing with no owner, no `readelf` -> skipped with warning,
+    `--host-build` and interpreted -> not run. Live check: the existing
+    Eglantine build reports `libQt6Charts.so.6` / `libqt6charts6`
+    [verify: auto-test]
+    → 11 tests added (hostlibs, pipeline, ContainerRunner.capture); 303 passed, 0 failed [live] (2026-11-25)
+    → Eglantine in a real noble container: nothing missing with the user's
+      host as it is (libqt6charts6 now installed) [live]; with
+      libQt6Charts.so.6 removed from the host list, reports it with package
+      libqt6charts6 [simulated: host already has the package] (2026-11-25)
 
 - [ ] 10.0 **User Story:** As a maintainer, I want end-to-end tests on
   all three OSes, a pinned benchmark set and a README so that success

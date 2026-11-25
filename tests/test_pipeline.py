@@ -4,6 +4,7 @@ from recompt.collect import Collected
 from recompt.errors import BuildFailedError, CancelledError, DepsMissingError, NoPlanError, StepTimeoutError
 from recompt.models import (
     BuildPlan,
+    HostLibrary,
     InstallProposal,
     Requirement,
     Source,
@@ -121,6 +122,20 @@ def make(ui, plan=COMPILED, host_os="linux", proposals=(INSTALL,), runner_kw=Non
 
 def opts(**kw):
     return RunOptions(source="https://example.org/r", **kw)
+
+
+def make_with_host_check(ui, missing, **kw):
+    checked = []
+
+    def host_check(programs, workdir, capture, libraries):
+        checked.append((programs, workdir, capture, libraries))
+        return missing, []
+
+    p, runner, made = make(ui, **kw)
+    runner.capture = lambda argv: None
+    p.host_check = host_check
+    p.host_libraries = lambda: {"libc.so.6"}
+    return p, runner, checked
 
 
 def test_stage_order_on_linux_and_installs_not_prompted():
@@ -274,3 +289,38 @@ def test_claude_backend_gets_notice_before_sending():
     p.run(opts(preview=True))
     assert seen["llm"].extract_plan([]) == "plan"
     assert ui.notices and "Claude" in ui.notices[0]
+
+
+def test_container_build_checks_host_libraries_before_stop_and_warns_with_apt_command():
+    ui = FakeUI()
+    missing = [HostLibrary(name="libQt6Charts.so.6", package="libqt6charts6"),
+               HostLibrary(name="libgone.so.2", package=None)]
+    p, runner, checked = make_with_host_check(ui, missing)
+    stopped_before_check = []
+    p.host_check = (lambda inner: lambda *a: stopped_before_check.append("stop" in ui.events) or inner(*a))(p.host_check)
+    result = p.run(opts())
+    assert checked[0][0] == ["/w/target/release/tool"] and checked[0][1] == "/w"
+    assert checked[0][2] is runner.capture and checked[0][3] == {"libc.so.6"}
+    assert stopped_before_check == [False]
+    assert result.status == "ok" and result.missing_host_libraries == missing
+    warning = next(w for w in ui.warnings if "libQt6Charts.so.6" in w)
+    assert "sudo apt install libqt6charts6" in warning and "libgone.so.2" in warning
+
+
+def test_host_library_check_skipped_for_host_build_and_interpreted_projects():
+    ui = FakeUI()
+    p, _, checked = make_with_host_check(ui, [HostLibrary(name="x.so", package="x")])
+    p.run(opts(host_build=True))
+    plan = BuildPlan(project_kind="interpreted", steps=[st("launch", ["npm", "start"])])
+    p2, _, checked2 = make_with_host_check(FakeUI(), [], plan=plan, proposals=(), collected=Collected(launch=["npm", "start"]))
+    p2.run(opts())
+    assert checked == [] and checked2 == []
+
+
+def test_no_ldconfig_on_host_skips_host_library_check_with_warning():
+    ui = FakeUI()
+    p, _, checked = make_with_host_check(ui, [])
+    p.host_libraries = lambda: None
+    result = p.run(opts())
+    assert checked == [] and result.status == "ok"
+    assert any("ldconfig" in w for w in ui.warnings)

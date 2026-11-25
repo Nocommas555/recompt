@@ -107,6 +107,11 @@ class InstallProposal(BaseModel):
     commands: list[Step] = Field(default_factory=list)
 
 
+class HostLibrary(BaseModel):
+    name: str
+    package: str | None = None
+
+
 class RunResult(BaseModel):
     status: Literal[
         "ok",
@@ -124,5 +129,6 @@ class RunResult(BaseModel):
     failed_step: Step | None = None
     error_output: str | None = None
     missing: list[Requirement] = Field(default_factory=list)
+    missing_host_libraries: list[HostLibrary] = Field(default_factory=list)
     prompts_asked: int = 0
     log_path: str = ""

@@ -283,6 +283,33 @@ infrastructure with fakes. Only `cli` prompts or exits.
      executable bit on POSIX and `.exe` on Windows. Several candidates
      -> ask; none -> exit 4.
    - Interpreted: the launch resolver's command.
+   - **Host library check** (`recompt/hostlibs.py`, Linux container runs
+     only; skipped with `--host-build`, on macOS and Windows, and for
+     interpreted projects). A program built in the container can need a
+     shared library that only the container has, because the dependency
+     proposal installed it there (Eglantine: `libQt6Charts.so.6` from
+     `qt6-charts-dev`). It runs after the collector and before
+     `runner.stop()`, while the container is still up. Container
+     commands go through `ContainerRunner.capture(argv)`, which runs them
+     as the build user and returns the full output without printing it
+     (`run()` keeps only the last 40 lines):
+     1. Inside the container, `readelf -d <program>` gives the `NEEDED`
+        library names and the `RUNPATH`/`RPATH` folders. `ldd` is not
+        run on the host, because it can execute the program's own
+        loader, which would run untrusted code outside the container.
+        No `readelf` in the container (exit 127) or a non-ELF file ->
+        the check is skipped with a warning.
+     2. On the host, a library counts as present when `ldconfig -p`
+        lists its name, or when it exists in a `RUNPATH`/`RPATH` folder
+        (`$ORIGIN` is the program's folder; `/src` maps to the working
+        copy).
+     3. For each missing library, `dpkg -S '*/<name>'` inside the
+        container gives the owning package (the `:<arch>` suffix is
+        dropped). No owner -> the library is listed by name only.
+     - Result: `RunResult.missing_host_libraries`. The report prints a
+       warning with the libraries and one `sudo apt install <packages>`
+       line; the exit code stays 0, because the build itself succeeded.
+       recompt never installs them on the host (see Pipeline rules).
 
 9. **LLM backends** (`recompt/llm/`: `base.py`, `claude.py`, `ollama.py`)
    - Interface: `extract_plan(sections) -> ExtractedPlan`, one Pydantic
@@ -380,6 +407,10 @@ class InstallProposal(BaseModel):
     packages: list[str]
     commands: list[Step]
 
+class HostLibrary(BaseModel):
+    name: str                    # e.g. "libQt6Charts.so.6"
+    package: str | None          # apt package in the container, if any
+
 class RunResult(BaseModel):
     status: Literal["ok", "build_failed", "invalid_input", "deps_missing",
                     "no_runnable_output", "no_plan", "timeout", "cancelled"]
@@ -389,6 +420,7 @@ class RunResult(BaseModel):
     failed_step: Step | None
     error_output: str | None
     missing: list[Requirement]
+    missing_host_libraries: list[HostLibrary]
     prompts_asked: int           # excludes install and prose confirmations
     log_path: str
 ```
@@ -432,6 +464,7 @@ cli ──> pipeline.run(input, options)
           ├─ runner.start()                                       (3 if no runtime)
           ├─ for step: runner.run(step)                           (1 / 6 / 130)
           ├─ collect.result(plan) ────────────> RunResult         (4)
+          ├─ container? hostlibs.check(programs, runner) ─> [HostLibrary]
           └─ finally: runner.stop(); report.result(); exit code
 ```
 
@@ -442,7 +475,9 @@ cli ──> pipeline.run(input, options)
 - Report-only dependencies are listed as a warning and the run
   continues; a later build failure shows whether they mattered.
 - With `--host-build` on Linux, missing tools are only reported;
-  recompt never runs apt as root on the host.
+  recompt never runs apt as root on the host. The same holds for shared
+  libraries a container-built program needs on the host: they are
+  reported with an install command, never installed.
 - Launch steps are never run; v1 returns the launch command.
 
 ### Error Handling
@@ -500,6 +535,7 @@ cli ──> pipeline.run(input, options)
 | FR-10: Ctrl-C | `manual-run-claude` | integration | interrupted run exits 130, lists completed steps, no container left |
 | FR-11: reuse working copy | `auto-test` | integration | pytest: second run fetches into the same folder |
 | FR-12: Linux sandbox | `docker` | integration | pytest: mount list, file ownership, canary folder unchanged |
+| Host library check (PRD risk: program may not run on the host) | `auto-test` | unit | pytest: fake runner output -> missing library with its package; present, RUNPATH and no-readelf cases |
 | Benchmark targets | `manual-run-user` | benchmark | report: Linux ≥ 14/15, macOS ≥ 11/15, Windows ≥ 11/15 |
 
 ## Trade-offs
@@ -530,7 +566,7 @@ cli ──> pipeline.run(input, options)
 - `pyproject.toml` — metadata, dependencies, extras, `recompt` console
   script, pytest markers
 - `recompt/{__init__,__main__,cli,report,pipeline,models,errors,config,proc}.py`
-- `recompt/{source,planner,deps,launch,collect}.py`
+- `recompt/{source,planner,deps,launch,collect,hostlibs}.py`
 - `recompt/detectors/{__init__,node,python,rust,go,cfamily,github_actions,gitlab_ci,dockerfile,readme}.py`
 - `recompt/runners/{__init__,base,container,host}.py`
 - `recompt/pkgmgr/{__init__,apt,brew,winget,toolchains}.py`

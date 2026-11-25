@@ -221,6 +221,9 @@ class ContainerRunner:
         code = self._exec(user, workdir, self._command(step), tail)
         return StepResult(step=step, exit_code=code, output_tail=tail.text(), duration_s=time.monotonic() - started)
 
+    def capture(self, command: list[str]) -> CmdResult:
+        return self.run_cmd([self.rt, "exec", *self.users.build, *_env_flags(), "-w", MOUNT, self.name, *command])
+
     def kill(self) -> None:
         self.run_cmd([self.rt, "rm", "-f", self.name])
 

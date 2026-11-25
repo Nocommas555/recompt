@@ -310,9 +310,11 @@ Risks.
   download and run anything inside it.
 - **Built program may not run on the host (Linux).** A program
   compiled inside the container can depend on system libraries the
-  host does not have, or has in other versions. A likely mitigation is
-  a container image that matches the host's distribution and release
-  [assumption, verify in tech-design].
+  host does not have, or has in other versions. Mitigated by a
+  container image that matches the host's distribution and release,
+  and by a check after the build that lists the libraries missing on
+  the host with the command to install them (tech design, result
+  collector).
 - **Wrong commands from prose.** Plans drawn from README text by an LLM
   can contain wrong or invented commands. Mitigated by using prose only
   as a fallback and requiring confirmation for those steps (Story 3).
