@@ -274,12 +274,12 @@ infrastructure with fakes. Only `cli` prompts or exits.
      defines one (Cargo `target/release/<bin>`, Go `-o`). Otherwise
      executable files modified after the run started, excluding `.git`,
      `node_modules`, `.venv`, `venv`, `vendor`, `__pycache__`,
-     `target/debug`, `build/CMakeFiles`, and the toolchain folders under
-     `/opt/recompt`.
-     Known gap (task 9.15): the exclusion is a fixed path, so a CI build
-     folder such as `build/release` exposes CMake's compiler-probe
-     executables under `build/release/CMakeFiles/`; with no terminal the
-     first candidate is taken, which reported a probe file for Eglantine. "Executable" means the
+     `target/debug`, every folder named `CMakeFiles` at any depth (CMake
+     compiler-probe executables live there, and CI build folders such as
+     `build/release` put it below `build/`), and the toolchain folders
+     under `/opt/recompt`. When any candidate sits inside a folder named
+     `bin`, only those candidates are kept, so test and helper binaries
+     elsewhere in the build tree do not crowd out the app. "Executable" means the
      executable bit on POSIX and `.exe` on Windows. Several candidates
      -> ask; none -> exit 4.
    - Interpreted: the launch resolver's command.

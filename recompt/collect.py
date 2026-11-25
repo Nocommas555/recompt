@@ -5,8 +5,8 @@ from pathlib import Path
 from recompt.errors import NoRunnableOutputError
 from recompt.models import BuildPlan
 
-EXCLUDED_NAMES = {".git", "node_modules", ".venv", "venv", "vendor", "__pycache__"}
-EXCLUDED_PATHS = ("target/debug", "build/CMakeFiles")
+EXCLUDED_NAMES = {".git", "node_modules", ".venv", "venv", "vendor", "__pycache__", "CMakeFiles"}
+EXCLUDED_PATHS = ("target/debug",)
 LIBRARY_SUFFIXES = (".so", ".dylib", ".dll", ".a", ".o")
 
 
@@ -35,8 +35,9 @@ def _scan(root: Path, since: float, host_os: str) -> list[str]:
         for name in files:
             path = Path(folder) / name
             if path.is_file() and not path.is_symlink() and path.stat().st_mtime >= since and _is_program(path, host_os):
-                found.append(str(path))
-    return sorted(found)
+                found.append(path)
+    in_bin = [p for p in found if "bin" in p.relative_to(root).parts[:-1]]
+    return sorted(str(p) for p in in_bin or found)
 
 
 def collect(plan: BuildPlan, workdir: Path, started_at: float, host_os: str) -> Collected:

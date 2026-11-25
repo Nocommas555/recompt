@@ -55,6 +55,25 @@ def test_several_candidates_are_all_returned(tmp_path):
     assert sorted(got.programs) == [str(tmp_path / "bin/a"), str(tmp_path / "bin/b")]
 
 
+def test_cmake_probe_files_in_any_build_folder_are_skipped_and_bin_is_preferred(tmp_path):
+    release = tmp_path / "build/release"
+    write_exe(release / "CMakeFiles/3.31.6/CompilerIdCXX/a.out")
+    write_exe(release / "CMakeFiles/3.31.6/CMakeDetermineCompilerABI_CXX.bin")
+    write_exe(release / "src/tests/unit_tests")
+    write_exe(release / "bin/eglantine")
+    write_exe(release / "bin/eden-cli")
+    got = collect(compiled(), tmp_path, 0, "linux")
+    assert got.programs == [str(release / "bin/eden-cli"), str(release / "bin/eglantine")]
+
+
+def test_candidates_outside_bin_are_kept_when_no_bin_folder_has_one(tmp_path):
+    write_exe(tmp_path / "out/CMakeFiles/probe.bin")
+    write_exe(tmp_path / "out/app")
+    write_exe(tmp_path / "out/helper")
+    got = collect(compiled(), tmp_path, 0, "linux")
+    assert got.programs == [str(tmp_path / "out/app"), str(tmp_path / "out/helper")]
+
+
 def test_no_program_is_an_error(tmp_path):
     with pytest.raises(NoRunnableOutputError):
         collect(compiled(), tmp_path, 0, "linux")

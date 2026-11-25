@@ -556,11 +556,14 @@
       program is a CMake probe file, see 9.15 (2026-11-25)
     → open: no interpreted repo confirmed by the user yet; Claude-backed
       Node app check done only by Claude (2026-11-25)
-  - [ ] 9.15 Fix program detection: skip every folder named
+  - [X] 9.15 Fix program detection: skip every folder named
     `CMakeFiles` (not only `build/CMakeFiles`) and prefer executables in
     a `bin/` folder over other candidates; regression test with a build
     tree like Eglantine's (`build/release/CMakeFiles/<ver>/*.bin` plus
     `build/release/bin/<app>`) [verify: auto-test]
+    → 2 regression tests added; 292 passed, 0 failed [live] (2026-11-25)
+    → on the real Eglantine build folder the old code listed 5 CMake
+      probe files first, the fix lists only bin/eden-cli and bin/eglantine [live] (2026-11-25)
 
 - [ ] 10.0 **User Story:** As a maintainer, I want end-to-end tests on
   all three OSes, a pinned benchmark set and a README so that success
