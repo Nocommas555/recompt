@@ -88,6 +88,41 @@ def test_backslash_continued_install_line_keeps_every_package(tmp_path):
     assert run_lines(f) == ["make"]
 
 
+def test_fixed_cmake_options_are_collected_even_from_skipped_steps(tmp_path):
+    configure = (
+        "flags=(\n"
+        "  -DCMAKE_BUILD_TYPE=Release\n"
+        "  -DBUILD_TESTING=OFF\n"
+        '  "-DCMAKE_PREFIX_PATH=$QT_ROOT_DIR"\n'
+        "  -DYUZU_USE_BUNDLED_OPENSSL=ON\n"
+        "  -DNIGHTLY_BUILD=${{ inputs.nightly && 'ON' || 'OFF' }}\n"
+        ")\n"
+        'cmake -S . -B build "${flags[@]}"'
+    )
+    jobs = {
+        "b": {
+            "runs-on": "ubuntu-latest",
+            "steps": [{"name": "Configure", "run": configure}, {"run": "gcc -DDEBUG=1 x.c"}],
+        }
+    }
+    [f] = detect(project(tmp_path, jobs), ctx())
+    assert f.cmake_options == ["-DBUILD_TESTING=OFF", "-DYUZU_USE_BUNDLED_OPENSSL=ON"]
+
+
+def test_cmake_generator_and_build_dir_are_collected(tmp_path):
+    run = 'flags=(-DX=1)\ncmake -S . -B build/release -G Ninja "${flags[@]}"\ncmake --build build/release --parallel'
+    jobs = {"b": {"runs-on": "ubuntu-latest", "steps": [{"name": "Configure", "run": run}]}}
+    [f] = detect(project(tmp_path, jobs), ctx())
+    assert (f.cmake_generator, f.cmake_build_dir) == ("Ninja", "build/release")
+
+
+def test_variable_build_dir_is_not_collected(tmp_path):
+    run = 'cmake -S . -B "$BUILD_DIR" -G "Unix Makefiles"'
+    jobs = {"b": {"runs-on": "ubuntu-latest", "steps": [{"run": run}]}}
+    [f] = detect(project(tmp_path, jobs), ctx())
+    assert (f.cmake_generator, f.cmake_build_dir) == ("Unix Makefiles", None)
+
+
 def test_falls_back_to_first_linux_job(tmp_path):
     jobs = {"a": {"runs-on": "macos-latest", "steps": [{"run": "x"}]}, "b": {"runs-on": "ubuntu-22.04", "steps": [{"run": "y"}]}}
     [f] = detect(project(tmp_path, jobs), ctx("windows"))

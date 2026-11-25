@@ -52,6 +52,9 @@ class Finding(BaseModel):
     steps: list[Step] = Field(default_factory=list)
     targets: list[Target] = Field(default_factory=list)
     notes: list[PlanNote] = Field(default_factory=list)
+    cmake_options: list[str] = Field(default_factory=list)
+    cmake_generator: str | None = None
+    cmake_build_dir: str | None = None
 
 
 class WorkingCopy(BaseModel):

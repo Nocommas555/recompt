@@ -59,6 +59,39 @@ def test_conflicting_lower_steps_are_noted_and_finding_notes_copied():
     assert any(n.kind == "skipped" for n in p.notes)
 
 
+def test_ci_cmake_options_are_added_to_the_configure_step():
+    cmake = Finding(
+        detector="cfamily",
+        ecosystem="cfamily",
+        steps=[
+            s("build", ["cmake", "-S", ".", "-B", "build", "-DCMAKE_BUILD_TYPE=Release"], Source.BUILD_FILE),
+            s("build", ["cmake", "--build", "build"], Source.BUILD_FILE),
+        ],
+    )
+    ci = Finding(detector="github_actions", cmake_options=["-DBUILD_TESTING=OFF", "-DCMAKE_BUILD_TYPE=Debug"])
+    p = plan([cmake, ci])
+    assert p.steps[0].command == ["cmake", "-S", ".", "-B", "build", "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_TESTING=OFF"]
+    assert p.steps[1].command == ["cmake", "--build", "build"]
+    assert any("1 CMake option" in n.message for n in p.notes)
+
+
+def test_ci_generator_and_build_dir_are_applied_and_ninja_required():
+    cmake = Finding(
+        detector="cfamily",
+        ecosystem="cfamily",
+        steps=[
+            s("build", ["cmake", "-S", ".", "-B", "build", "-DCMAKE_BUILD_TYPE=Release"], Source.BUILD_FILE),
+            s("build", ["cmake", "--build", "build", "--config", "Release"], Source.BUILD_FILE),
+        ],
+    )
+    ci = Finding(detector="github_actions", cmake_generator="Ninja", cmake_build_dir="build/release")
+    p = plan([cmake, ci])
+    assert p.steps[0].command == ["cmake", "-S", ".", "-B", "build/release", "-DCMAKE_BUILD_TYPE=Release", "-G", "Ninja"]
+    assert p.steps[1].command == ["cmake", "--build", "build/release", "--config", "Release"]
+    assert "ninja" in {r.tool for r in p.requirements}
+    assert any("Ninja" in n.message for n in p.notes)
+
+
 def test_missing_build_step_of_compiled_project_is_filled_from_next_source():
     c = Finding(detector="cfamily", ecosystem="cfamily", steps=[s("setup", "./bootstrap", Source.BUILD_FILE)])
     ci = Finding(detector="github_actions", steps=[s("build", "make", Source.CI, "ci.yml:b")])

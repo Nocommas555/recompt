@@ -477,7 +477,7 @@
 
 - [ ] 9.0 **User Story:** As a user, I want one `recompt` command that
   runs the whole pipeline, previews the plan, and reports the program
-  location or launch command with clear exit codes [14/13]
+  location or launch command with clear exit codes [15/13]
   - [X] 9.1 Write tests for `recompt/collect.py`: compiled -> expected
     target path when given; otherwise executables modified after run
     start, excluding `.git`, `node_modules`, `.venv`, `venv`, `vendor`,
@@ -543,9 +543,24 @@
     confirm it builds on the host without a container
     [verify: manual-run-claude]
     → --host-build on a local C project built with host make and no container; program runs [live] (2026-11-24)
-  - [ ] 9.14 User runs `recompt` end to end on one compiled and one
+  - [~] 9.14 User runs `recompt` end to end on one compiled and one
     interpreted repo on Linux and confirms the program runs and the
     launch command starts the app [verify: manual-run-user]
+    → povesma/embo: not buildable (Claude Code plugin); after the Python
+      fix recompt correctly exits 5, no plan (2026-11-24)
+    → Eglantine (C++/CMake): build succeeds (exit 0, bin/eglantine and
+      bin/eden-cli) after five fixes found on the way, all in the design:
+      tool-config-only pyproject, CMake minimum version via PyPI, CI
+      runs-on expressions / backslash lines / OS-named workflow files,
+      CI -D options, CI generator and build folder; but the reported
+      program is a CMake probe file, see 9.15 (2026-11-25)
+    → open: no interpreted repo confirmed by the user yet; Claude-backed
+      Node app check done only by Claude (2026-11-25)
+  - [ ] 9.15 Fix program detection: skip every folder named
+    `CMakeFiles` (not only `build/CMakeFiles`) and prefer executables in
+    a `bin/` folder over other candidates; regression test with a build
+    tree like Eglantine's (`build/release/CMakeFiles/<ver>/*.bin` plus
+    `build/release/bin/<app>`) [verify: auto-test]
 
 - [ ] 10.0 **User Story:** As a maintainer, I want end-to-end tests on
   all three OSes, a pinned benchmark set and a README so that success

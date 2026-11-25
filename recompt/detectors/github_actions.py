@@ -3,7 +3,7 @@ from pathlib import Path
 
 import yaml
 
-from recompt.detectors.ci_common import NOT_FOR_BUILDING, process_script
+from recompt.detectors.ci_common import NOT_FOR_BUILDING, cmake_configure, cmake_options, process_script
 from recompt.detectors.common import min_version, root
 from recompt.models import DetectContext, Finding, PlanNote, Requirement, Source, WorkingCopy
 
@@ -109,6 +109,10 @@ def detect(copy: WorkingCopy, ctx: DetectContext) -> list[Finding]:
         if not run:
             continue
         label = item.get("name") or run.splitlines()[0]
+        finding.cmake_options += [o for o in cmake_options(run) if o not in finding.cmake_options]
+        generator, build_dir = cmake_configure(run)
+        finding.cmake_generator = finding.cmake_generator or generator
+        finding.cmake_build_dir = finding.cmake_build_dir or build_dir
         if "${{" in run:
             finding.notes.append(PlanNote(kind="skipped", message=f"CI step uses expressions: {label.strip()}", sources=[origin]))
             continue

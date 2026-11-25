@@ -2,7 +2,7 @@ import re
 
 import yaml
 
-from recompt.detectors.ci_common import process_script
+from recompt.detectors.ci_common import cmake_configure, cmake_options, process_script
 from recompt.detectors.common import root
 from recompt.models import DetectContext, Finding, WorkingCopy
 
@@ -35,11 +35,23 @@ def detect(copy: WorkingCopy, ctx: DetectContext) -> list[Finding]:
     name, job = next(((n, j) for n, j in jobs if BUILD_NAME.search(n)), jobs[0])
 
     before = job["before_script"] if "before_script" in job else data.get("before_script")
+    lines = _as_list(before) + _as_list(job["script"])
     steps, requirements = process_script(
-        _as_list(before) + _as_list(job["script"]),
+        lines,
         origin=f"{ORIGIN}:{name}",
         shell="sh",
         cwd=".",
         host_os=ctx.host_os,
     )
-    return [Finding(detector="gitlab_ci", requirements=requirements, steps=steps)]
+    script = "\n".join(lines)
+    generator, build_dir = cmake_configure(script)
+    return [
+        Finding(
+            detector="gitlab_ci",
+            requirements=requirements,
+            steps=steps,
+            cmake_options=cmake_options(script),
+            cmake_generator=generator,
+            cmake_build_dir=build_dir,
+        )
+    ]

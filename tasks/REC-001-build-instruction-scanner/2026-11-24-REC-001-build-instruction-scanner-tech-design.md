@@ -105,6 +105,16 @@ infrastructure with fakes. Only `cli` prompts or exits.
        formatting, coverage, uploading, deploying or publishing are
        skipped with a note; they are not needed to build the program.
      - `apt-get update` lines are dropped (base setup already updates).
+     - Lines ending in `\` are joined before parsing.
+     - `-DNAME=VALUE` options from CI steps that run `cmake` (including
+       steps skipped for expressions) are kept when the value is fixed
+       text; the planner appends them to the `cmake -S` configure step,
+       except names the build file already sets, `CMAKE_BUILD_TYPE` and
+       `CMAKE_PREFIX_PATH`.
+     - The CI's CMake generator (`-G`) and build folder (`-B`, when fixed
+       text) are applied to recompt's configure and build steps; a Ninja
+       generator adds `ninja` as a requirement. Some projects only build
+       with Ninja, which creates output folders that Make does not.
      - Package-install lines (`apt-get install`, `brew install`,
        `choco`/`winget install`) become one `Requirement` per package;
        on Linux the apt line is also kept as an `install` step (`sudo`
@@ -177,6 +187,9 @@ infrastructure with fakes. Only `cli` prompts or exits.
      (apt's `yarn` is an unrelated program).
    - winget runs without auto-accepting license agreements, so the user
      answers winget's own agreement prompt.
+   - Known limit: Ubuntu 24.04's apt `nodejs` is version 18; Node
+     projects that need a newer runtime fail in the container (no
+     newer-Node installer yet).
    - On Linux the proposal covers every requirement, so CI `install`
      steps are not run separately (they would install the same
      packages again).
@@ -262,7 +275,11 @@ infrastructure with fakes. Only `cli` prompts or exits.
      executable files modified after the run started, excluding `.git`,
      `node_modules`, `.venv`, `venv`, `vendor`, `__pycache__`,
      `target/debug`, `build/CMakeFiles`, and the toolchain folders under
-     `/opt/recompt`. "Executable" means the
+     `/opt/recompt`.
+     Known gap (task 9.15): the exclusion is a fixed path, so a CI build
+     folder such as `build/release` exposes CMake's compiler-probe
+     executables under `build/release/CMakeFiles/`; with no terminal the
+     first candidate is taken, which reported a probe file for Eglantine. "Executable" means the
      executable bit on POSIX and `.exe` on Windows. Several candidates
      -> ask; none -> exit 4.
    - Interpreted: the launch resolver's command.
@@ -285,6 +302,11 @@ infrastructure with fakes. Only `cli` prompts or exits.
      tries Claude credentials, then a local Ollama server, then none.
    - The model gets no tools; every extracted step has
      `needs_confirm=True` (prompt-injection mitigation).
+   - Claude refusals are not retried with server-side fallbacks: that
+     option is documented only on the beta client, not with
+     `messages.parse`, so a refusal makes the prose fallback unavailable
+     for the run. A missing Claude key surfaces from the SDK as a plain
+     `TypeError` and is mapped to `LLMUnavailable`.
    - Both SDKs are optional extras (`recompt[claude]`,
      `recompt[ollama]`), imported only when selected.
 

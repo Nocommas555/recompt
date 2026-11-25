@@ -34,6 +34,41 @@ def _apt_step_command(line: str) -> str:
     return command
 
 
+CMAKE_DEFINE = re.compile(r"(?<![\w-])-D([A-Za-z_]\w*)=([^\s\"')]*)")
+MACHINE_SPECIFIC_OPTIONS = {"CMAKE_BUILD_TYPE", "CMAKE_PREFIX_PATH"}
+
+
+def cmake_options(script: str) -> list[str]:
+    if "cmake" not in script.lower():
+        return []
+    options = []
+    for name, value in CMAKE_DEFINE.findall(script):
+        if not value or "$" in value or "{" in value or name in MACHINE_SPECIFIC_OPTIONS:
+            continue
+        option = f"-D{name}={value}"
+        if option not in options:
+            options.append(option)
+    return options
+
+
+CMAKE_GENERATOR = re.compile(r'(?<!\S)-G\s*(?:"([^"]+)"|(\S+))')
+CMAKE_BUILD_DIR = re.compile(r'(?<!\S)-B\s*(?:"([^"]+)"|(\S+))')
+
+
+def _fixed(match) -> str | None:
+    if not match:
+        return None
+    value = match.group(1) or match.group(2)
+    return None if "$" in value or "{" in value else value
+
+
+def cmake_configure(script: str) -> tuple[str | None, str | None]:
+    for line in join_continuations(script.splitlines()):
+        if re.search(r"\bcmake\b", line) and re.search(r"(?<!\S)-S(?:\s|$)", line):
+            return _fixed(CMAKE_GENERATOR.search(line)), _fixed(CMAKE_BUILD_DIR.search(line))
+    return None, None
+
+
 def join_continuations(lines: list[str]) -> list[str]:
     joined: list[str] = []
     pending = ""
