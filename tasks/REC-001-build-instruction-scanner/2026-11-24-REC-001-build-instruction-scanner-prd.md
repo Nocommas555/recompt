@@ -113,8 +113,9 @@ runnable result without working out the build myself.
          are detected
    - [ ] Build steps are read from supported CI and container files;
          container files are only read for hints, never run
-   - [ ] README/INSTALL prose is used only when no build file or CI
-         file yields a plan
+   - [ ] Build steps are taken from README/INSTALL prose only when no
+         build file or CI file yields them; requirements and packages
+         are read from those documents on every run (FR-2)
    - [ ] For each fixture README in the test set, the plan drawn from
          prose matches that fixture's expected plan
    - [ ] When sources disagree, the plan states which source it used
@@ -127,8 +128,10 @@ runnable result without working out the build myself.
    **Acceptance Criteria**:
    - [ ] A preview mode prints the full plan, each step's source, and
          the missing dependencies, and runs nothing
-   - [ ] In a normal run, steps taken from README prose are shown and
-         need the user's confirmation before they run
+   - [ ] In a normal run, recompt pauses after planning and runs
+         nothing until the user approves the whole plan; items the LLM
+         read from documents are marked (FR-3)
+   - [ ] `--yes` approves the plan without the pause
 
 4. **As a** user
    **I want** recompt to build compiled projects
@@ -165,12 +168,17 @@ runnable result without working out the build myself.
          anything is installed
    - [ ] Installation, including any administrator elevation, happens
          only after the user confirms
-   - [ ] If the user declines, the run stops and reports what is missing
+   - [ ] If the user declines the plan review, the run stops before
+         anything runs and reports what would have been installed
    - [ ] On a system without a supported package manager, recompt lists
          what is missing and installs nothing
    - [ ] On Linux, dependencies are installed inside the build container
-         (Story 7); they are listed but need no confirmation, because
-         they do not change the host
+         (Story 7); they are approved with the plan review (FR-3) like
+         every other item, with no separate install prompt
+   - [ ] System packages are found even when the project has no CI
+         file: from what the LLM reads in its README or other build
+         documents, and from the libraries and tools its build files
+         look for (see FR-6)
 
 7. **As a** Linux user
    **I want** builds to run inside a container
@@ -195,8 +203,17 @@ runnable result without working out the build myself.
 |---|---|---|---|
 | Ecosystems | Node/JS, Python, Rust, Go, C/C++ | same | same |
 | Build isolation | container sandbox | none (runs on host) | none (runs on host) |
-| Install missing deps via | apt, inside the container | Homebrew | winget |
+| Install missing deps via | the host distribution's package manager, inside a container of the same distribution (see below) | Homebrew | winget |
 | CI / container files read | GitHub Actions, GitLab CI, Dockerfile | same | same |
+
+Linux distributions in v1:
+
+| Host distribution | Build container image | Package manager |
+|---|---|---|
+| Ubuntu, Debian and their derivatives (Mint, Pop!_OS) | same distribution and release | apt |
+| Fedora | same release | dnf |
+| Arch and its derivatives (Manjaro, EndeavourOS) | newest Arch image (Arch has no releases, so the image can be newer than the host) | pacman |
+| any other | latest Ubuntu LTS, with a warning that the program may not run on the host | apt |
 
 C/C++ covers Make, CMake, Meson, and autotools projects. Native Windows
 C/C++ toolchains are harder to detect and install than the others; see
@@ -214,7 +231,12 @@ Risks.
 
 2. **FR-2**: Detect build instructions for the ecosystems and CI/
    container formats in the Support Matrix; use documentation prose only
-   as a fallback.
+   as a fallback for build steps. The README and other build documents
+   are always read with the LLM for requirements and system packages,
+   because projects often state them only there, in free text, tables
+   or per-distribution sections. When build files already give steps,
+   the LLM may add requirements and packages only, never steps. With no
+   LLM available, the documents are skipped with a warning.
    - **Priority**: High
    - **Dependencies**: reading prose reliably likely needs an LLM
      [assumption, verify in tech-design]
@@ -223,6 +245,20 @@ Risks.
    records each step's source; offer a preview mode that prints the plan
    and runs nothing.
    - **Priority**: High
+   - Every run pauses at the end of planning and shows the whole plan:
+     steps, requirements, packages to install, and where each came
+     from (marking what the LLM read from documents). Nothing runs
+     until the user approves. This one review replaces the separate
+     install and prose-step confirmations.
+   - When the configure step reports missing libraries (FR-6), the
+     run pauses a second time and shows only the newly found packages;
+     nothing more is installed until the user approves them.
+   - `--yes` approves both reviews without pausing, including what the
+     LLM read from documents. Without a terminal and without `--yes`,
+     the run stops at its start, before anything runs; the exit code is
+     set in the tech design.
+   - Preview starts no container and runs no plan step, but still
+     reads documents with the LLM, because the plan depends on them.
 
 4. **FR-4**: Run the plan for compiled projects and report the program
    file's location, or report that no runnable program was produced.
@@ -236,13 +272,45 @@ Risks.
    list them; install them through the Support Matrix package managers
    only after the user confirms, elevating only then.
    - **Priority**: High
+   - System packages come from every source the project offers, not
+     only CI:
+     - install lines in CI files and the Dockerfile;
+     - requirements and install commands the LLM finds in the README
+       and other build documents (FR-2);
+     - the libraries and tools the build files look for (CMake
+       `pkg_check_modules`, `find_package` with the project's own Find
+       modules, Meson `dependency()`), read before the build;
+     - the libraries the configure step reports missing when it runs
+       (for example CMake's "Could NOT find ZLIB"), which also covers
+       CMake's built-in Find modules and checks inside `if()` blocks
+       that reading the files cannot evaluate. recompt looks these up
+       the same way, asks for approval (FR-3), installs them and runs
+       configure again, for a few rounds at most.
+   - Libraries and tools are turned into package names by asking the
+     package manager which package contains the needed file or
+     pkg-config module, using the distribution's own package index.
+     recompt keeps no list of package names per distribution.
+   - Install lines written for a different package manager than the
+     build container's (an `apt install` line on Fedora) are not
+     translated; they are shown as hints, and the build-file lookup
+     above supplies the packages.
+   - When a lookup finds several packages for one file, recompt picks
+     one by fixed rules set in the tech design, and the plan shows
+     which one was picked, the alternatives, and why. A tiny,
+     documented list of wrapper packages (for example `qtchooser`,
+     which only redirects to the real Qt tools) is never picked; it is
+     the one package-name list besides the toolchain names.
+   - Package names from any source are checked against a safe-name
+     pattern and quoted before use; others are refused and shown in
+     the review.
 
 7. **FR-7**: Run on Linux, macOS, and Windows hosts per the Support
    Matrix.
    - **Priority**: High
 
 8. **FR-8**: Command-line interface with defined exit codes: success,
-   build failure, missing dependency declined, invalid input, cancelled.
+   build failure, plan not approved, missing container runtime,
+   invalid input, cancelled.
    The exact codes are set in tech-design.
    - **Priority**: High
 
@@ -298,6 +366,12 @@ Risks.
 - Producing binaries for a different OS or CPU than the host
   (cross-compiling).
 - Installing through package managers not in the Support Matrix.
+- Build containers for Linux distributions other than Ubuntu, Debian,
+  Fedora and Arch and their derivatives, for example openSUSE (zypper
+  cannot search the files of packages that are not installed), Rocky
+  Linux, AlmaLinux, RHEL and Alpine (apk has no local file search, and
+  its musl-based programs do not run on glibc hosts). These hosts use
+  the Ubuntu LTS image with a warning.
 - Updating or uninstalling apps after they are built.
 
 ## Risks
@@ -311,16 +385,37 @@ Risks.
 - **Built program may not run on the host (Linux).** A program
   compiled inside the container can depend on system libraries the
   host does not have, or has in other versions. Mitigated by a
-  container image that matches the host's distribution and release,
-  and by a check after the build that lists the libraries missing on
-  the host with the command to install them (tech design, result
-  collector).
-- **Wrong commands from prose.** Plans drawn from README text by an LLM
-  can contain wrong or invented commands. Mitigated by using prose only
-  as a fallback and requiring confirmation for those steps (Story 3).
+  container image of the host's distribution and release (newest image
+  on Arch; Ubuntu LTS on unsupported distributions), and by a check
+  after the build that lists the libraries missing on the host with
+  the command to install them in the host's own package manager (tech
+  design, result collector).
+- **Package index size.** Finding packages by file needs the
+  distribution's file index in the container. Measured on 2026-11-26:
+  Ubuntu noble about 410 MB and 20 s to fetch, then about 15 s per
+  search; Fedora 87 MB, growing to 242 MB on the first file search;
+  Arch 52 MB and 2 s. The index is fetched only when a lookup is
+  needed, once per run.
+- **Wrong package from a lookup.** One file can be in several packages
+  (Qt 5 and Qt 6 both ship `lrelease`; Fedora lists 32- and 64-bit
+  builds). A wrong pick fails the build; the plan shows each pick so
+  the user can see it.
+- **Wrong commands or packages from prose.** Plans drawn from README
+  text by an LLM can contain wrong or invented commands and packages.
+  Mitigated by taking steps from prose only when build files give none,
+  and by the plan review every run, which marks what came from the LLM
+  (FR-3).
 - **Prompt injection.** README text is written by the project's
-  authors and can contain instructions aimed at the LLM. Same
-  mitigation as above.
+  authors and can contain instructions aimed at the LLM, including
+  packages an attacker wants installed. The plan review is the
+  protection; no parser can make this text safe. With `--yes` there is
+  no review, so a hostile README gets through: accepted by the user
+  for unattended runs (2026-11-26). On Linux the result is still
+  confined to the build container.
+- **LLM on every run.** Documents are read with the LLM on every run
+  that has them, not only as a fallback. With Claude, repository text
+  leaves the machine and costs money each run; with no LLM, the
+  documents are skipped and packages stated only there are missed.
 - **Sending repository content to an LLM.** If the LLM is an external
   service, repository text leaves the machine, costs money per run,
   and needs a network connection
@@ -340,8 +435,7 @@ Risks.
    - macOS: at least 70% (11 of 15).
    - Windows: at least 70% (11 of 15).
 2. **Prompts per run**: on successful benchmark runs, the average
-   number of prompts other than install and prose-step confirmations is
-   zero.
+   number of prompts other than the plan reviews (FR-3) is zero.
 
 ## References
 
@@ -358,7 +452,8 @@ Risks.
 - Input: git remote URL with optional ref, or local folder (user,
   2026-11-24).
 - Instruction sources: build files, CI configs, README/docs prose
-  (user, 2026-11-24); prose as fallback only (review, 2026-11-24).
+  (user, 2026-11-24); prose as fallback only for build steps (review,
+  2026-11-24; narrowed 2026-11-26, see below).
 - Interpreted languages: run setup and return the launch command
   (user, 2026-11-24).
 - OS scope: Linux, macOS, and Windows in v1 (user, 2026-11-24).
@@ -369,7 +464,36 @@ Risks.
   host build (Claude, 2026-11-24, follows from the sandbox decision).
 - Missing dependencies: install after asking (user, 2026-11-24).
 - Ecosystems: Node/JS, Python, Rust, Go, C/C++ (user, 2026-11-24).
-- Package managers: apt, Homebrew, winget (user, 2026-11-24).
+- Package managers: apt, Homebrew, winget (user, 2026-11-24); on
+  Linux, apt, dnf and pacman inside a container of the host's
+  distribution; other distributions use Ubuntu LTS (user, 2026-11-26).
+- System packages come from CI, the Dockerfile, documented install
+  commands and the build files' library lookups, not from CI alone;
+  taking them only from CI was a planning mistake (user, 2026-11-26).
+- No list of package names kept by recompt; packages are found by file
+  or pkg-config module through the distribution's own index (user,
+  2026-11-26). Exceptions, also by user decision: the small toolchain
+  table and the tiny wrapper deny-list.
+- The README and other build documents are always read with the LLM
+  for requirements and packages; a fixed text pattern would miss most
+  of them and would not stop an attacker (user, 2026-11-26). Steps
+  still come from prose only when build files give none (Claude,
+  2026-11-26).
+- Every run pauses after planning for a review of the whole plan
+  (user, 2026-11-26); the review is the single approval and replaces
+  the install and prose-step confirmations (Claude, 2026-11-26,
+  follows from it). This supersedes "Linux in-container installs need
+  no confirmation" above.
+- `--yes` approves the whole plan, including what the LLM read from
+  documents (user, 2026-11-26, risk accepted).
+- The 2026-11-26 amendment as a whole, including the items marked
+  Claude, was confirmed by the user on 2026-11-26.
+- After the independent review (2026-11-26): run configure once and
+  look up what it reports missing, with a second review for those
+  packages (user); a tiny deny-list of wrapper packages together with
+  the choice rules (user); safe-name check and quoting of package
+  names; early stop without a terminal and without `--yes` (Claude,
+  from the review findings). Confirmed by the user on 2026-11-26.
 - CI/container files: GitHub Actions, GitLab CI, Dockerfile (user,
   2026-11-24).
 - Benchmark target: 90% Linux, 70% macOS and Windows (user,

